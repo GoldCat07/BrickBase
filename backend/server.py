@@ -203,6 +203,8 @@ async def get_properties(
     property_type: Optional[str] = None,
     user_id: Optional[str] = None
 ):
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase not configured. Please add credentials to .env file")
     try:
         query = supabase.table('Property').select('*')
         
