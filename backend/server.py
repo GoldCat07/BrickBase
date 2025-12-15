@@ -28,7 +28,7 @@ if supabase_url and supabase_url != 'your-supabase-url' and supabase_key and sup
     except Exception as e:
         logger.warning(f"Failed to initialize Supabase client: {e}")
 else:
-    logger.warning(\"Supabase credentials not configured. Please update .env file with your Supabase URL and key.\")
+    logger.warning("Supabase credentials not configured. Please update .env file with your Supabase URL and key.")
 
 # Create the main app without a prefix
 app = FastAPI()
