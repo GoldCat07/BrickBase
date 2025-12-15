@@ -240,6 +240,8 @@ async def get_properties(
 
 @api_router.get("/properties/{property_id}", response_model=PropertyResponse)
 async def get_property(property_id: str):
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase not configured. Please add credentials to .env file")
     try:
         result = supabase.table('Property').select('*').eq('id', property_id).execute()
         
