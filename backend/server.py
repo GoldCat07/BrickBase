@@ -15,6 +15,13 @@ import base64
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 # Supabase connection
 supabase_url = os.environ.get('SUPABASE_URL', 'your-supabase-url')
 supabase_key = os.environ.get('SUPABASE_KEY', 'your-supabase-service-key')
