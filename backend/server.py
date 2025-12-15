@@ -24,8 +24,10 @@ supabase: Client = None
 if supabase_url and supabase_url != 'your-supabase-url' and supabase_key and supabase_key != 'your-supabase-service-key':
     try:
         supabase = create_client(supabase_url, supabase_key)
-        logger.info(\"Supabase client initialized successfully\")\n    except Exception as e:
-        logger.warning(f\"Failed to initialize Supabase client: {e}\")\nelse:
+        logger.info("Supabase client initialized successfully")
+    except Exception as e:
+        logger.warning(f"Failed to initialize Supabase client: {e}")
+else:
     logger.warning(\"Supabase credentials not configured. Please update .env file with your Supabase URL and key.\")
 
 # Create the main app without a prefix
