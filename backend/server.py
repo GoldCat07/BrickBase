@@ -266,6 +266,8 @@ async def get_property(property_id: str):
 
 @api_router.delete("/properties/{property_id}")
 async def delete_property(property_id: str):
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase not configured. Please add credentials to .env file")
     try:
         result = supabase.table('Property').delete().eq('id', property_id).execute()
         return {"message": "Property deleted successfully"}
