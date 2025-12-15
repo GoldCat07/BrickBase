@@ -129,6 +129,8 @@ async def root():
 
 @api_router.post("/properties", response_model=PropertyResponse)
 async def create_property(property_data: PropertyCreate):
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase not configured. Please add credentials to .env file")
     try:
         # Generate property ID
         property_id = str(uuid.uuid4())
