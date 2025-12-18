@@ -102,6 +102,21 @@ export default function MapScreen() {
     );
   }
 
+  // Web fallback - maps don't work on web
+  if (Platform.OS === 'web') {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.emptyContainer}>
+          <Ionicons name="map-outline" size={64} color="#666" />
+          <Text style={styles.emptyText}>Map view is only available on mobile</Text>
+          <Text style={styles.emptySubtext}>
+            Scan the QR code with Expo Go app to use the map feature
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   if (properties.length === 0) {
     return (
       <SafeAreaView style={styles.container}>
