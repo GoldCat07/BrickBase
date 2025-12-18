@@ -37,17 +37,10 @@ export default function MapScreen() {
   const fetchProperties = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('Property')
-        .select('*')
-        .eq('userId', user?.id)
-        .not('latitude', 'is', null)
-        .not('longitude', 'is', null);
-
-      if (error) throw error;
+      const response = await api.get('/properties');
       
-      const propertiesWithLocation = (data || []).filter(
-        p => p.latitude && p.longitude
+      const propertiesWithLocation = (response.data || []).filter(
+        (p: Property) => p.latitude && p.longitude
       );
       
       setProperties(propertiesWithLocation);
