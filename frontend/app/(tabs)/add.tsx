@@ -173,37 +173,10 @@ export default function AddPropertyScreen() {
     setPhotos(photos.filter((_, i) => i !== index));
   };
 
-  const uploadImagesToStorage = async (propertyId: string) => {
-    const uploadedUrls: string[] = [];
-
-    for (let i = 0; i < photos.length; i++) {
-      const photo = photos[i];
-      if (!photo.base64) continue;
-
-      try {
-        const fileName = `${propertyId}/photo_${i}_${Date.now()}.jpg`;
-        const { data, error } = await supabase.storage
-          .from('property-images')
-          .upload(fileName, Buffer.from(photo.base64, 'base64'), {
-            contentType: 'image/jpeg',
-            upsert: false,
-          });
-
-        if (error) throw error;
-
-        const { data: { publicUrl } } = supabase.storage
-          .from('property-images')
-          .getPublicUrl(fileName);
-
-        uploadedUrls.push(publicUrl);
-      } catch (error) {
-        console.error('Error uploading image:', error);
-        // Fallback to base64
-        uploadedUrls.push(`data:image/jpeg;base64,${photo.base64}`);
-      }
-    }
-
-    return uploadedUrls;
+  const preparePhotos = () => {
+    // For now, we'll store base64 directly in MongoDB
+    // In production, you'd want to upload to a file storage service
+    return photos.map(photo => photo.base64 ? `data:image/jpeg;base64,${photo.base64}` : photo.uri);
   };
 
   const handleSubmit = async () => {
