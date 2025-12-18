@@ -57,17 +57,11 @@ export default function PropertyDetailsScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              const { error } = await supabase
-                .from('Property')
-                .delete()
-                .eq('id', propertyId);
-
-              if (error) throw error;
-
+              await api.delete(`/properties/${propertyId}`);
               Alert.alert('Success', 'Property deleted successfully');
               router.back();
             } catch (error: any) {
-              Alert.alert('Error', error.message || 'Failed to delete property');
+              Alert.alert('Error', error.response?.data?.detail || 'Failed to delete property');
             }
           },
         },
