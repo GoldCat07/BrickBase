@@ -187,39 +187,20 @@ export default function AddPropertyScreen() {
 
     setLoading(true);
     try {
-      // Create builder if name provided
-      let builderId = null;
-      if (builderName) {
-        const { data: builderData, error: builderError } = await supabase
-          .from('Builder')
-          .insert({
-            name: builderName,
-            phoneNumber: builderPhone,
-          })
-          .select()
-          .single();
-
-        if (builderError) throw builderError;
-        builderId = builderData?.id;
-      }
-
-      // Generate property ID
-      const propertyId = `prop_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-      // Upload images
-      const photoUrls = await uploadImagesToStorage(propertyId);
-
       // Get location from first photo with location
       const photoWithLocation = photos.find(p => p.location);
       
+      // Prepare photos (base64 strings)
+      const photoUrls = preparePhotos();
+      
       // Create property
       const propertyData = {
-        id: propertyId,
         propertyType,
         propertyPhotos: photoUrls,
         floor: floor ? parseInt(floor) : null,
         price: price ? parseFloat(price) : null,
-        builderId,
+        builderName: builderName || null,
+        builderPhone: builderPhone || null,
         black: black ? parseFloat(black) : null,
         white: white ? parseFloat(white) : null,
         blackPercentage: black && price ? (parseFloat(black) / parseFloat(price)) * 100 : null,
@@ -232,18 +213,11 @@ export default function AddPropertyScreen() {
         propertyAge: propertyAge ? parseInt(propertyAge) : null,
         handoverDate: handoverDate || null,
         case: caseType || null,
-        userId: user?.id,
-        latitude: photoWithLocation?.location?.coords.latitude,
-        longitude: photoWithLocation?.location?.coords.longitude,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        latitude: photoWithLocation?.location?.coords.latitude || null,
+        longitude: photoWithLocation?.location?.coords.longitude || null,
       };
 
-      const { error } = await supabase
-        .from('Property')
-        .insert(propertyData);
-
-      if (error) throw error;
+      await api.post('/properties', propertyData);
 
       Alert.alert('Success', 'Property added successfully!', [
         {
