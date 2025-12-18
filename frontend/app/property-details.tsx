@@ -33,14 +33,8 @@ export default function PropertyDetailsScreen() {
   const fetchPropertyDetails = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('Property')
-        .select('*')
-        .eq('id', propertyId)
-        .single();
-
-      if (error) throw error;
-      setProperty(data);
+      const response = await api.get(`/properties/${propertyId}`);
+      setProperty(response.data);
     } catch (error) {
       console.error('Error fetching property:', error);
       Alert.alert('Error', 'Failed to load property details');
