@@ -18,10 +18,11 @@ import { Ionicons } from '@expo/vector-icons';
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isSignUp, setIsSignUp] = useState(false);
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signIn } = useAuth();
+  const { signIn, signUp } = useAuth();
 
   const validateEmail = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -48,7 +49,7 @@ export default function LoginScreen() {
     return true;
   };
 
-  const handleLogin = async () => {
+  const handleSubmit = async () => {
     const isEmailValid = validateEmail(email);
     const isPasswordValid = validatePassword(password);
 
@@ -58,9 +59,13 @@ export default function LoginScreen() {
 
     setLoading(true);
     try {
-      await signIn(email, password);
+      if (isSignUp) {
+        await signUp(email, password);
+      } else {
+        await signIn(email, password);
+      }
     } catch (error: any) {
-      Alert.alert('Login Failed', error.message || 'Invalid email or password');
+      Alert.alert('Error', error.message || 'An error occurred');
     } finally {
       setLoading(false);
     }
@@ -82,7 +87,9 @@ export default function LoginScreen() {
             </View>
             
             <Text style={styles.title}>Real Estate Inventory</Text>
-            <Text style={styles.subtitle}>Sign in to manage your properties</Text>
+            <Text style={styles.subtitle}>
+              {isSignUp ? 'Create your account' : 'Sign in to manage your properties'}
+            </Text>
 
             <View style={styles.form}>
               <View style={styles.inputContainer}>
@@ -127,14 +134,27 @@ export default function LoginScreen() {
 
               <TouchableOpacity
                 style={[styles.button, loading && styles.buttonDisabled]}
-                onPress={handleLogin}
+                onPress={handleSubmit}
                 disabled={loading}
               >
                 {loading ? (
                   <ActivityIndicator color="#000" />
                 ) : (
-                  <Text style={styles.buttonText}>Sign In</Text>
+                  <Text style={styles.buttonText}>
+                    {isSignUp ? 'Create Account' : 'Sign In'}
+                  </Text>
                 )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.toggleButton}
+                onPress={() => setIsSignUp(!isSignUp)}
+              >
+                <Text style={styles.toggleText}>
+                  {isSignUp
+                    ? 'Already have an account? Sign In'
+                    : "Don't have an account? Sign Up"}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -219,5 +239,13 @@ const styles = StyleSheet.create({
     color: '#000',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  toggleButton: {
+    padding: 8,
+    alignItems: 'center',
+  },
+  toggleText: {
+    color: '#fff',
+    fontSize: 14,
   },
 });
