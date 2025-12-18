@@ -10,9 +10,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, Region } from 'react-native-maps';
-import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Property } from '../../types/property';
+import api from '../../lib/api';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
