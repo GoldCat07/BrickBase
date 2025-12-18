@@ -9,7 +9,21 @@ import {
   Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import MapView, { Marker, Region } from 'react-native-maps';
+import { Platform } from 'react-native';
+let MapView: any;
+let Marker: any;
+if (Platform.OS !== 'web') {
+  const maps = require('react-native-maps');
+  MapView = maps.default;
+  Marker = maps.Marker;
+}
+
+interface Region {
+  latitude: number;
+  longitude: number;
+  latitudeDelta: number;
+  longitudeDelta: number;
+}
 import { useAuth } from '../../contexts/AuthContext';
 import { Property } from '../../types/property';
 import api from '../../lib/api';
