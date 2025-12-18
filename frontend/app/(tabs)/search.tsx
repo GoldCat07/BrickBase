@@ -7,16 +7,15 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
-  FlatList,
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Property, PropertyType } from '../../types/property';
 import { router } from 'expo-router';
 import PropertyCard from '../../components/PropertyCard';
+import api from '../../lib/api';
 
 const PROPERTY_TYPES: PropertyType[] = ['Plot', 'Builder Floor', 'Villa/House', 'Apartment Society'];
 
@@ -44,14 +43,8 @@ export default function SearchScreen() {
   const fetchProperties = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('Property')
-        .select('*')
-        .eq('userId', user?.id)
-        .order('createdAt', { ascending: false });
-
-      if (error) throw error;
-      setProperties(data || []);
+      const response = await api.get('/properties');
+      setProperties(response.data || []);
     } catch (error) {
       console.error('Error fetching properties:', error);
     } finally {
@@ -81,7 +74,7 @@ export default function SearchScreen() {
       filtered = filtered.filter(p => p.propertyType === selectedType);
     }
 
-    // Filter by search query (property type or price)
+    // Filter by search query
     if (searchQuery) {
       filtered = filtered.filter(p => 
         p.propertyType?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -120,6 +113,9 @@ export default function SearchScreen() {
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         stickyHeaderIndices={[0]}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#fff" />
+        }
       >
         {/* Filters Section */}
         <View style={styles.filterSection}>
