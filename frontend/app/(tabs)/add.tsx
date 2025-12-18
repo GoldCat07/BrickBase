@@ -16,9 +16,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { PropertyType, CaseType } from '../../types/property';
+import api from '../../lib/api';
 
 const PROPERTY_TYPES: PropertyType[] = ['Plot', 'Builder Floor', 'Villa/House', 'Apartment Society'];
 const CASE_TYPES: CaseType[] = ['REGISTRY_CASE', 'TRANSFER_CASE', 'OTHER'];
