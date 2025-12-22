@@ -9,12 +9,15 @@ import {
   Dimensions,
   TouchableOpacity,
   Alert,
+  Linking,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Property } from '../types/property';
 import api from '../lib/api';
+import WhatsAppShareModal from '../components/WhatsAppShareModal';
 
 const { width } = Dimensions.get('window');
 
@@ -23,6 +26,7 @@ export default function PropertyDetailsScreen() {
   const [property, setProperty] = useState<Property | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [showShareModal, setShowShareModal] = useState(false);
 
   useEffect(() => {
     if (propertyId) {
@@ -58,8 +62,15 @@ export default function PropertyDetailsScreen() {
           onPress: async () => {
             try {
               await api.delete(`/properties/${propertyId}`);
-              Alert.alert('Success', 'Property deleted successfully');
-              router.back();
+              Alert.alert('Success', 'Property deleted successfully', [
+                {
+                  text: 'OK',
+                  onPress: () => {
+                    // Navigate back - search screen will refresh via useFocusEffect
+                    router.back();
+                  },
+                },
+              ]);
             } catch (error: any) {
               Alert.alert('Error', error.response?.data?.detail || 'Failed to delete property');
             }
@@ -69,9 +80,39 @@ export default function PropertyDetailsScreen() {
     );
   };
 
-  const formatPrice = (price?: number) => {
+  const handleEdit = () => {
+    router.push({
+      pathname: '/(tabs)/add',
+      params: { editPropertyId: propertyId as string },
+    });
+  };
+
+  const handleCall = () => {
+    const phoneNumber = property?.builders?.[0]?.phoneNumber || property?.builderPhone;
+    if (phoneNumber) {
+      const countryCode = property?.builders?.[0]?.countryCode || '+91';
+      Linking.openURL(`tel:${countryCode}${phoneNumber}`);
+    } else {
+      Alert.alert('No Phone Number', 'Builder phone number not available');
+    }
+  };
+
+  const handleWhatsApp = () => {
+    const phoneNumber = property?.builders?.[0]?.phoneNumber || property?.builderPhone;
+    if (phoneNumber) {
+      const countryCode = (property?.builders?.[0]?.countryCode || '+91').replace('+', '');
+      Linking.openURL(`https://wa.me/${countryCode}${phoneNumber}`);
+    } else {
+      Alert.alert('No Phone Number', 'Builder phone number not available');
+    }
+  };
+
+  const formatPrice = (price?: number, unit?: string) => {
     if (!price) return 'Not specified';
-    return `₹${(price / 100000).toFixed(2)} Lakhs`;
+    if (unit === 'cr') {
+      return `₹${price.toFixed(2)} Cr`;
+    }
+    return `₹${price.toFixed(2)} Lakhs`;
   };
 
   const formatDate = (date?: string) => {
@@ -81,6 +122,11 @@ export default function PropertyDetailsScreen() {
       month: 'long',
       day: 'numeric',
     });
+  };
+
+  const getInitials = (email?: string) => {
+    if (!email) return '?';
+    return email.charAt(0).toUpperCase();
   };
 
   if (loading) {
@@ -104,6 +150,9 @@ export default function PropertyDetailsScreen() {
   if (property.poolProperty) features.push({ icon: 'water', text: 'Pool' });
   if (property.parkProperty) features.push({ icon: 'leaf', text: 'Park' });
   if (property.gatedProperty) features.push({ icon: 'lock-closed', text: 'Gated' });
+
+  const builderName = property.builders?.[0]?.name || property.builderName;
+  const hasBuilder = builderName || property.builders?.[0]?.phoneNumber || property.builderPhone;
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
@@ -144,23 +193,71 @@ export default function PropertyDetailsScreen() {
                 ))}
               </View>
             )}
+            {/* Share button on image */}
+            <TouchableOpacity 
+              style={styles.shareImageButton} 
+              onPress={() => setShowShareModal(true)}
+            >
+              <Ionicons name="share-social-outline" size={22} color="#fff" />
+            </TouchableOpacity>
           </View>
         )}
 
         {/* Property Details */}
         <View style={styles.content}>
-          {/* Header */}
+          {/* Header with Actions */}
           <View style={styles.header}>
-            <View>
+            <View style={styles.headerLeft}>
               <Text style={styles.propertyType}>
                 {property.propertyType || 'Property'}
               </Text>
-              <Text style={styles.price}>{formatPrice(property.price)}</Text>
+              <Text style={styles.price}>{formatPrice(property.price, property.priceUnit)}</Text>
+              
+              {/* Posted By - Below Price */}
+              {property.userEmail && (
+                <View style={styles.postedBySection}>
+                  <Text style={styles.postedByLabel}>Posted by</Text>
+                  <View style={styles.userInfo}>
+                    <View style={styles.avatar}>
+                      <Text style={styles.avatarText}>{getInitials(property.userEmail)}</Text>
+                    </View>
+                    <Text style={styles.userName}>{property.userEmail.split('@')[0]}</Text>
+                  </View>
+                </View>
+              )}
             </View>
-            <TouchableOpacity style={styles.deleteButton} onPress={handleDelete}>
-              <Ionicons name="trash-outline" size={24} color="#ff4444" />
-            </TouchableOpacity>
+            <View style={styles.headerActions}>
+              <TouchableOpacity style={styles.actionButton} onPress={() => setShowShareModal(true)}>
+                <Ionicons name="share-social" size={22} color="#4CAF50" />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.actionButton} onPress={handleEdit}>
+                <Ionicons name="create-outline" size={22} color="#fff" />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.actionButton} onPress={handleDelete}>
+                <Ionicons name="trash-outline" size={22} color="#ff4444" />
+              </TouchableOpacity>
+            </View>
           </View>
+
+          {/* Call Builder Section */}
+          {hasBuilder && (
+            <View style={styles.callBuilderSection}>
+              <View style={styles.builderInfo}>
+                <Text style={styles.builderLabel}>Builder</Text>
+                <Text style={styles.builderName}>{builderName || 'Contact Available'}</Text>
+              </View>
+              <View style={styles.callButtons}>
+                <TouchableOpacity style={styles.callButton} onPress={handleCall}>
+                  <Ionicons name="call" size={20} color="#fff" />
+                  <Text style={styles.callButtonText}>Call</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.callButton, styles.whatsappCallButton]} onPress={handleWhatsApp}>
+                  <Ionicons name="logo-whatsapp" size={20} color="#fff" />
+                  <Text style={styles.callButtonText}>WhatsApp</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
 
           {/* Features */}
           {features.length > 0 && (
@@ -204,8 +301,18 @@ export default function PropertyDetailsScreen() {
             </View>
           </View>
 
-          {/* Payment Details */}
-          {(property.black || property.white) && (
+          {/* Payment Plan */}
+          {property.paymentPlan && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Payment Plan</Text>
+              <View style={styles.paymentPlanCard}>
+                <Text style={styles.paymentPlanText}>{property.paymentPlan}</Text>
+              </View>
+            </View>
+          )}
+
+          {/* Legacy Payment Details */}
+          {(property.black || property.white) && !property.paymentPlan && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Payment Details</Text>
               <View style={styles.paymentGrid}>
@@ -268,6 +375,16 @@ export default function PropertyDetailsScreen() {
             </View>
           )}
 
+          {/* Additional Notes */}
+          {property.additionalNotes && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Additional Notes</Text>
+              <View style={styles.notesCard}>
+                <Text style={styles.notesText}>{property.additionalNotes}</Text>
+              </View>
+            </View>
+          )}
+
           {/* Location */}
           {property.latitude && property.longitude && (
             <View style={styles.section}>
@@ -282,6 +399,13 @@ export default function PropertyDetailsScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* WhatsApp Share Modal */}
+      <WhatsAppShareModal
+        visible={showShareModal}
+        property={property}
+        onClose={() => setShowShareModal(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -327,6 +451,14 @@ const styles = StyleSheet.create({
   paginationDotActive: {
     backgroundColor: '#fff',
   },
+  shareImageButton: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    borderRadius: 20,
+    padding: 10,
+  },
   content: {
     padding: 16,
   },
@@ -334,7 +466,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 24,
+    marginBottom: 16,
+  },
+  headerLeft: {
+    flex: 1,
   },
   propertyType: {
     color: '#999',
@@ -346,8 +481,85 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: 'bold',
   },
-  deleteButton: {
+  postedBySection: {
+    marginTop: 12,
+  },
+  postedByLabel: {
+    color: '#666',
+    fontSize: 12,
+    marginBottom: 6,
+  },
+  userInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  avatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#333',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  userName: {
+    color: '#fff',
+    fontSize: 14,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  actionButton: {
     padding: 8,
+    backgroundColor: '#1a1a1a',
+    borderRadius: 8,
+  },
+  callBuilderSection: {
+    backgroundColor: '#1a1a1a',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+  },
+  builderInfo: {
+    marginBottom: 12,
+  },
+  builderLabel: {
+    color: '#999',
+    fontSize: 12,
+    marginBottom: 4,
+  },
+  builderName: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  callButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  callButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#4CAF50',
+    borderRadius: 8,
+    padding: 12,
+  },
+  whatsappCallButton: {
+    backgroundColor: '#25D366',
+  },
+  callButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   section: {
     marginBottom: 24,
@@ -396,6 +608,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  paymentPlanCard: {
+    backgroundColor: '#1a1a1a',
+    padding: 16,
+    borderRadius: 12,
+  },
+  paymentPlanText: {
+    color: '#fff',
+    fontSize: 14,
+    lineHeight: 22,
+  },
   paymentGrid: {
     gap: 12,
   },
@@ -436,6 +658,16 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  notesCard: {
+    backgroundColor: '#1a1a1a',
+    padding: 16,
+    borderRadius: 12,
+  },
+  notesText: {
+    color: '#fff',
+    fontSize: 14,
+    lineHeight: 22,
   },
   locationItem: {
     flexDirection: 'row',
