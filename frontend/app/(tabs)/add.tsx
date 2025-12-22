@@ -65,6 +65,15 @@ export default function AddPropertyScreen() {
   // Validation errors
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Reset form when screen is focused (not in edit mode)
+  useFocusEffect(
+    useCallback(() => {
+      if (!editPropertyId) {
+        resetForm();
+      }
+    }, [editPropertyId])
+  );
+
   // Load property for editing
   useEffect(() => {
     if (editPropertyId) {
