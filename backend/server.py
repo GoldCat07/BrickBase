@@ -109,7 +109,13 @@ class PropertyResponse(BaseModel):
     propertyPhotos: List[str] = []
     floor: Optional[int] = None
     price: Optional[float] = None
+    priceUnit: Optional[str] = "lakh"
     builderId: Optional[str] = None
+    builderName: Optional[str] = None
+    builderPhone: Optional[str] = None
+    builders: List[dict] = []
+    paymentPlan: Optional[str] = None
+    additionalNotes: Optional[str] = None
     black: Optional[float] = None
     white: Optional[float] = None
     blackPercentage: Optional[float] = None
@@ -123,6 +129,7 @@ class PropertyResponse(BaseModel):
     handoverDate: Optional[str] = None
     case: Optional[str] = None
     userId: Optional[str] = None
+    userEmail: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     createdAt: Optional[str] = None
