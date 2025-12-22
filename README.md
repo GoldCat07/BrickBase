@@ -213,3 +213,248 @@ The mobile app handles this automatically via the API client.
 For issues or questions, check the logs:
 - Backend: `/var/log/supervisor/backend.err.log`
 - Frontend: `/var/log/supervisor/expo.out.log`
+
+---
+
+## Deep Full Understanding for the App for an AI Agent
+
+This section provides comprehensive documentation for AI agents to understand the app architecture, file structure, data flow, and implementation details without needing to read through all code files.
+
+### Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         FRONTEND (Expo/React Native)                │
+│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐    │
+│  │   Login     │ │  Add Prop   │ │   Search    │ │    Map      │    │
+│  │   Screen    │ │   Screen    │ │   Screen    │ │   Screen    │    │
+│  └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘    │
+│         │               │               │               │           │
+│         └───────────────┴───────────────┴───────────────┘           │
+│                                 │                                    │
+│                    ┌────────────▼────────────┐                       │
+│                    │      AuthContext        │                       │
+│                    │   (User State Mgmt)     │                       │
+│                    └────────────┬────────────┘                       │
+│                                 │                                    │
+│                    ┌────────────▼────────────┐                       │
+│                    │      API Client         │                       │
+│                    │   (axios + JWT token)   │                       │
+│                    └────────────┬────────────┘                       │
+└─────────────────────────────────┼───────────────────────────────────┘
+                                  │ HTTP (JSON)
+                    ┌─────────────▼─────────────┐
+                    │      FastAPI Backend      │
+                    │   /api/* endpoints        │
+                    └─────────────┬─────────────┘
+                                  │
+                    ┌─────────────▼─────────────┐
+                    │        MongoDB            │
+                    │  users, properties,       │
+                    │  builders collections     │
+                    └───────────────────────────┘
+```
+
+### File Structure & Purpose
+
+#### Frontend (`/app/frontend/`)
+
+```
+frontend/
+├── app/                          # Expo Router - file-based routing
+│   ├── _layout.tsx              # Root layout, AuthProvider wrapper, navigation setup
+│   ├── index.tsx                # Entry redirect (to login or tabs)
+│   ├── login.tsx                # Login/Register screen with form validation
+│   ├── property-details.tsx     # Single property view with gallery, edit, delete, share
+│   └── (tabs)/                  # Tab navigator screens
+│       ├── _layout.tsx          # Tab bar configuration (Map, Add, Search, Profile)
+│       ├── add.tsx              # Add/Edit property form with photo upload
+│       ├── map.tsx              # OpenStreetMap with property markers
+│       ├── profile.tsx          # User profile and logout
+│       └── search.tsx           # Property list with filters
+├── components/                   # Reusable UI components
+│   ├── PropertyCard.tsx         # Property card for search results (with call builder, share)
+│   └── WhatsAppShareModal.tsx   # Modal for selecting fields/photos to share via WhatsApp
+├── contexts/
+│   └── AuthContext.tsx          # React Context for authentication state
+├── lib/
+│   └── api.ts                   # Axios instance with JWT interceptor
+├── types/
+│   └── property.ts              # TypeScript interfaces (Property, Builder, etc.)
+└── .env                         # Environment variables (EXPO_TUNNEL_SUBDOMAIN, etc.)
+```
+
+#### Backend (`/app/backend/`)
+
+```
+backend/
+├── server.py                    # Single FastAPI file with all endpoints
+└── .env                         # MongoDB URL, secret key
+```
+
+### Data Models
+
+#### User
+```typescript
+{
+  id: string;           // UUID
+  email: string;        // Unique email
+  hashed_password: string;
+  createdAt: string;    // ISO date
+}
+```
+
+#### Property
+```typescript
+{
+  id: string;                    // UUID
+  propertyType: 'Plot' | 'Builder Floor' | 'Villa/House' | 'Apartment Society';
+  propertyPhotos: string[];      // Base64 encoded images (data:image/jpeg;base64,...)
+  floor?: number;                // Only for Builder Floor, Apartment Society
+  price?: number;                // Stored in Lakhs (converted from Cr if needed)
+  priceUnit?: 'cr' | 'lakh';     // Display unit
+  builders?: BuilderInfo[];      // Array of builder contacts
+  builderName?: string;          // Legacy - first builder name
+  builderPhone?: string;         // Legacy - first builder phone
+  paymentPlan?: string;          // Free text for payment details
+  additionalNotes?: string;      // Free text for extra info
+  possessionDate?: string;
+  handoverDate?: string;
+  clubProperty: boolean;
+  poolProperty: boolean;
+  parkProperty: boolean;
+  gatedProperty: boolean;
+  propertyAge?: number;
+  case?: 'REGISTRY_CASE' | 'TRANSFER_CASE' | 'OTHER';
+  userId: string;                // Owner user ID
+  userEmail: string;             // Owner email (for "Posted by")
+  latitude?: number;             // GPS from photo EXIF
+  longitude?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+```
+
+#### BuilderInfo
+```typescript
+{
+  name?: string;
+  phoneNumber?: string;
+  countryCode?: string;  // '+91', '+1', etc.
+}
+```
+
+### API Endpoints
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/api/auth/register` | No | Create new user |
+| POST | `/api/auth/login` | No | Login, returns JWT |
+| GET | `/api/auth/me` | Yes | Get current user |
+| GET | `/api/properties` | Yes | List all properties |
+| POST | `/api/properties` | Yes | Create property |
+| GET | `/api/properties/{id}` | Yes | Get single property |
+| PUT | `/api/properties/{id}` | Yes | Update property (owner only) |
+| DELETE | `/api/properties/{id}` | Yes | Delete property (owner only) |
+
+### Key Implementation Details
+
+#### 1. Authentication Flow
+- User registers/logs in → Backend returns JWT token
+- Token stored in AsyncStorage
+- API client (axios) automatically attaches token to all requests
+- AuthContext provides `user`, `loading`, `login()`, `logout()` to all screens
+- On app start, checks for stored token and validates with `/api/auth/me`
+
+#### 2. Photo Upload with GPS
+- Camera: Uses `expo-image-picker` camera, then `expo-location` for current GPS
+- Gallery: Extracts EXIF data from photos using `exif: true` option
+- GPS Extraction: Handles multiple EXIF formats (decimal, DMS array, GPS object)
+- HEIF Support: iOS HEIF photos should have EXIF extracted automatically by expo-image-picker
+- Photos without location: Shows inline warning instead of multiple alerts
+- Storage: Photos converted to base64 and stored directly in MongoDB
+
+#### 3. Price Handling
+- User enters price with Cr/Lakh dropdown
+- Stored internally in Lakhs (Cr * 100 = Lakhs)
+- Display shows original unit
+
+#### 4. Navigation Patterns
+- Tab Navigator: Map, Add Property, Search, Profile
+- Stack Navigation: Property Details stacked on top of tabs
+- Edit Mode: Add screen with `editPropertyId` param loads existing property
+- Delete: Returns to previous screen, search refreshes via `useFocusEffect`
+
+#### 5. WhatsApp Share Feature
+- Modal with horizontal scrolling photos (27-30% screen height)
+- Tap to select/deselect photos and fields
+- Long press for full-screen zoomable preview
+- Generates formatted text with selected fields
+- Uses native Share API to open WhatsApp
+
+#### 6. Property Card Features
+- "Call Builder" buttons: Direct phone call and WhatsApp
+- "Posted By": Shows user avatar (first letter) and email username
+- Share button: Opens WhatsApp share modal
+
+#### 7. Conditional Form Fields
+- Floor field: Hidden for 'Plot' and 'Villa/House' property types
+- Form resets when Add tab is focused (not in edit mode)
+
+### Common Modification Patterns
+
+#### Adding a New Field to Property
+1. Add to `PropertyCreate` and `PropertyResponse` in `server.py`
+2. Add to `Property` interface in `types/property.ts`
+3. Add state and input in `add.tsx`
+4. Add to `propertyData` object in `handleSubmit()`
+5. Display in `property-details.tsx`
+6. Optionally add to `PropertyCard.tsx` and `WhatsAppShareModal.tsx`
+
+#### Adding a New Screen
+1. Create file in `app/` folder (file name = route)
+2. For tab screen: Add to `app/(tabs)/` and update `_layout.tsx`
+3. For stack screen: Create in `app/` root, navigate with `router.push()`
+
+#### Modifying Tab Bar
+- Edit `app/(tabs)/_layout.tsx`
+- Tab bar height: `tabBarStyle.height`
+- Bottom padding: `tabBarStyle.paddingBottom` (for iPhone home indicator)
+
+### Environment & Services
+
+- **Expo Tunnel**: Uses ngrok for external access (`EXPO_TUNNEL_SUBDOMAIN`)
+- **MongoDB**: Local instance on default port
+- **Backend Port**: 8001 (all `/api/*` routes proxied)
+- **Frontend Port**: 3000 (Expo dev server)
+
+### Debugging Tips
+
+```bash
+# Check services
+sudo supervisorctl status
+
+# Restart services
+sudo supervisorctl restart expo
+sudo supervisorctl restart backend
+
+# View logs
+tail -f /var/log/supervisor/expo.out.log
+tail -f /var/log/supervisor/expo.err.log
+tail -f /var/log/supervisor/backend.out.log
+tail -f /var/log/supervisor/backend.err.log
+
+# Test backend
+curl http://localhost:8001/api/
+
+# Check MongoDB (if mongo shell available)
+mongosh --eval "db.properties.find()"
+```
+
+### Known Limitations
+
+1. **Image Storage**: Base64 in MongoDB (not scalable for production)
+2. **HEIF Location**: May not extract GPS from all HEIF variants
+3. **Single User**: Properties are user-scoped, no sharing between users
+4. **Offline**: No offline support, requires network
+5. **WhatsApp Share**: Cannot share images directly via URL scheme, only text
