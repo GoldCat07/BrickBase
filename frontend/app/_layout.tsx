@@ -7,19 +7,19 @@ import * as SplashScreen from 'expo-splash-screen';
 SplashScreen.preventAutoHideAsync();
 
 function RootLayoutNav() {
-  const { session, loading } = useAuth();
+  const { user, loading } = useAuth();
 
   useEffect(() => {
     if (!loading) {
       SplashScreen.hideAsync();
       
-      if (!session) {
+      if (!user) {
         router.replace('/login');
       } else {
         router.replace('/(tabs)/add');
       }
     }
-  }, [session, loading]);
+  }, [user, loading]);
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
