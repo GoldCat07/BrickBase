@@ -70,14 +70,24 @@ class Token(BaseModel):
     user: UserResponse
 
 
+class BuilderInfo(BaseModel):
+    name: Optional[str] = None
+    phoneNumber: Optional[str] = None
+    countryCode: Optional[str] = "+91"
+
+
 class PropertyCreate(BaseModel):
     propertyType: Optional[str] = None
     propertyPhotos: List[str] = []  # Base64 encoded images
     floor: Optional[int] = None
     price: Optional[float] = None
+    priceUnit: Optional[str] = "lakh"  # "cr" or "lakh"
     builderName: Optional[str] = None
     builderPhone: Optional[str] = None
-    black: Optional[float] = None
+    builders: List[BuilderInfo] = []  # Multiple builders support
+    paymentPlan: Optional[str] = None  # Replaces black/white
+    additionalNotes: Optional[str] = None
+    black: Optional[float] = None  # Kept for backward compatibility
     white: Optional[float] = None
     blackPercentage: Optional[float] = None
     whitePercentage: Optional[float] = None
