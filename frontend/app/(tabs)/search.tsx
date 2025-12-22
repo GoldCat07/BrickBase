@@ -15,6 +15,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { Property, PropertyType } from '../../types/property';
 import { router, useFocusEffect } from 'expo-router';
 import PropertyCard from '../../components/PropertyCard';
+import WhatsAppShareModal from '../../components/WhatsAppShareModal';
 import api from '../../lib/api';
 
 const PROPERTY_TYPES: PropertyType[] = ['Plot', 'Builder Floor', 'Villa/House', 'Apartment Society'];
@@ -25,6 +26,7 @@ export default function SearchScreen() {
   const [filteredProperties, setFilteredProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [shareProperty, setShareProperty] = useState<Property | null>(null);
   
   // Filters
   const [minPrice, setMinPrice] = useState('');
