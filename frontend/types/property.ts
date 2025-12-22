@@ -1,5 +1,12 @@
 export type PropertyType = 'Plot' | 'Builder Floor' | 'Villa/House' | 'Apartment Society';
 export type CaseType = 'REGISTRY_CASE' | 'TRANSFER_CASE' | 'OTHER';
+export type PriceUnit = 'cr' | 'lakh';
+
+export interface BuilderInfo {
+  name?: string;
+  phoneNumber?: string;
+  countryCode?: string;
+}
 
 export interface Property {
   id: string;
@@ -7,13 +14,20 @@ export interface Property {
   propertyPhotos: string[];
   floor?: number;
   price?: number;
+  priceUnit?: PriceUnit;
   builderId?: string;
+  builderName?: string;
+  builderPhone?: string;
+  builders?: BuilderInfo[];
+  paymentPlan?: string;
+  additionalNotes?: string;
   black?: number;
   white?: number;
   blackPercentage?: number;
   whitePercentage?: number;
   possessionDate?: string;
   userId?: string;
+  userEmail?: string;
   clubProperty: boolean;
   poolProperty: boolean;
   parkProperty: boolean;
