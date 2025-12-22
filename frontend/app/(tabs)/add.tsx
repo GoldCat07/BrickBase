@@ -613,19 +613,21 @@ export default function AddPropertyScreen() {
             {errors.price && <Text style={styles.errorText}>{errors.price}</Text>}
           </View>
 
-          {/* Floor */}
-          <View style={styles.section}>
-            <Text style={styles.label}>Floor</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter floor number"
-              placeholderTextColor="#666"
-              value={floor}
-              onChangeText={setFloor}
-              keyboardType="numeric"
-            />
-            {errors.floor && <Text style={styles.errorText}>{errors.floor}</Text>}
-          </View>
+          {/* Floor - Only show for Builder Floor and Apartment Society */}
+          {propertyType !== 'Plot' && propertyType !== 'Villa/House' && (
+            <View style={styles.section}>
+              <Text style={styles.label}>Floor</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter floor number"
+                placeholderTextColor="#666"
+                value={floor}
+                onChangeText={setFloor}
+                keyboardType="numeric"
+              />
+              {errors.floor && <Text style={styles.errorText}>{errors.floor}</Text>}
+            </View>
+          )}
 
           {/* Builder Details - Side by Side */}
           <View style={styles.section}>
