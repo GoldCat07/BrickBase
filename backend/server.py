@@ -295,6 +295,18 @@ async def create_property(
             }
             await db.builders.insert_one(builder_dict)
         
+        # Prepare builders list
+        builders_list = []
+        if property_data.builders:
+            builders_list = [b.dict() for b in property_data.builders]
+        elif property_data.builderName:
+            # Backward compatibility: convert old format to new
+            builders_list = [{
+                "name": property_data.builderName,
+                "phoneNumber": property_data.builderPhone,
+                "countryCode": "+91"
+            }]
+        
         # Prepare property data
         property_dict = {
             "id": property_id,
@@ -302,7 +314,13 @@ async def create_property(
             "propertyPhotos": property_data.propertyPhotos,
             "floor": property_data.floor,
             "price": property_data.price,
+            "priceUnit": property_data.priceUnit or "lakh",
             "builderId": builder_id,
+            "builderName": property_data.builderName,
+            "builderPhone": property_data.builderPhone,
+            "builders": builders_list,
+            "paymentPlan": property_data.paymentPlan,
+            "additionalNotes": property_data.additionalNotes,
             "black": property_data.black,
             "white": property_data.white,
             "blackPercentage": property_data.blackPercentage,
@@ -316,6 +334,7 @@ async def create_property(
             "handoverDate": property_data.handoverDate,
             "case": property_data.case,
             "userId": current_user["id"],
+            "userEmail": current_user["email"],
             "latitude": property_data.latitude,
             "longitude": property_data.longitude,
             "createdAt": datetime.utcnow().isoformat(),
