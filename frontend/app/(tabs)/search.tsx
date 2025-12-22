@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { Property, PropertyType } from '../../types/property';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import PropertyCard from '../../components/PropertyCard';
 import api from '../../lib/api';
 
@@ -32,9 +32,12 @@ export default function SearchScreen() {
   const [selectedType, setSelectedType] = useState<PropertyType | ''>('');
   const [searchQuery, setSearchQuery] = useState('');
 
-  useEffect(() => {
-    fetchProperties();
-  }, []);
+  // Refresh on screen focus (handles refresh after delete)
+  useFocusEffect(
+    useCallback(() => {
+      fetchProperties();
+    }, [])
+  );
 
   useEffect(() => {
     applyFilters();
@@ -131,33 +134,6 @@ export default function SearchScreen() {
             />
           </View>
 
-          {/* Price Range */}
-          <View style={styles.priceContainer}>
-            <View style={styles.priceInput}>
-              <Text style={styles.priceLabel}>Min Price</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="0"
-                placeholderTextColor="#666"
-                value={minPrice}
-                onChangeText={setMinPrice}
-                keyboardType="numeric"
-              />
-            </View>
-            <Text style={styles.priceSeparator}>-</Text>
-            <View style={styles.priceInput}>
-              <Text style={styles.priceLabel}>Max Price</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Any"
-                placeholderTextColor="#666"
-                value={maxPrice}
-                onChangeText={setMaxPrice}
-                keyboardType="numeric"
-              />
-            </View>
-          </View>
-
           {/* Property Type Filter */}
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={styles.chipContainer}>
@@ -198,6 +174,33 @@ export default function SearchScreen() {
               ))}
             </View>
           </ScrollView>
+
+          {/* Price Range - with bottom margin */}
+          <View style={styles.priceContainer}>
+            <View style={styles.priceInput}>
+              <Text style={styles.priceLabel}>Min Price</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="0"
+                placeholderTextColor="#666"
+                value={minPrice}
+                onChangeText={setMinPrice}
+                keyboardType="numeric"
+              />
+            </View>
+            <Text style={styles.priceSeparator}>-</Text>
+            <View style={styles.priceInput}>
+              <Text style={styles.priceLabel}>Max Price</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Any"
+                placeholderTextColor="#666"
+                value={maxPrice}
+                onChangeText={setMaxPrice}
+                keyboardType="numeric"
+              />
+            </View>
+          </View>
 
           {/* Clear Filters */}
           {(minPrice || maxPrice || selectedType || searchQuery) && (
@@ -260,6 +263,7 @@ const styles = StyleSheet.create({
     gap: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#333',
+    paddingBottom: 20,
   },
   searchBar: {
     flexDirection: 'row',
@@ -278,6 +282,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     gap: 12,
+    marginTop: 8,
   },
   priceInput: {
     flex: 1,
