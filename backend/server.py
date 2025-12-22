@@ -428,6 +428,78 @@ async def delete_property(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@api_router.put("/properties/{property_id}", response_model=PropertyResponse)
+async def update_property(
+    property_id: str,
+    property_data: PropertyCreate,
+    current_user: dict = Depends(get_current_user)
+):
+    try:
+        # Check if property exists
+        existing = await db.properties.find_one({
+            "id": property_id,
+            "userId": current_user["id"]
+        })
+        
+        if not existing:
+            raise HTTPException(status_code=404, detail="Property not found")
+        
+        # Prepare builders list
+        builders_list = []
+        if property_data.builders:
+            builders_list = [b.dict() for b in property_data.builders]
+        elif property_data.builderName:
+            builders_list = [{
+                "name": property_data.builderName,
+                "phoneNumber": property_data.builderPhone,
+                "countryCode": "+91"
+            }]
+        
+        # Update property data
+        update_dict = {
+            "propertyType": property_data.propertyType,
+            "propertyPhotos": property_data.propertyPhotos,
+            "floor": property_data.floor,
+            "price": property_data.price,
+            "priceUnit": property_data.priceUnit or "lakh",
+            "builderName": property_data.builderName,
+            "builderPhone": property_data.builderPhone,
+            "builders": builders_list,
+            "paymentPlan": property_data.paymentPlan,
+            "additionalNotes": property_data.additionalNotes,
+            "black": property_data.black,
+            "white": property_data.white,
+            "blackPercentage": property_data.blackPercentage,
+            "whitePercentage": property_data.whitePercentage,
+            "possessionDate": property_data.possessionDate,
+            "clubProperty": property_data.clubProperty,
+            "poolProperty": property_data.poolProperty,
+            "parkProperty": property_data.parkProperty,
+            "gatedProperty": property_data.gatedProperty,
+            "propertyAge": property_data.propertyAge,
+            "handoverDate": property_data.handoverDate,
+            "case": property_data.case,
+            "latitude": property_data.latitude,
+            "longitude": property_data.longitude,
+            "updatedAt": datetime.utcnow().isoformat(),
+        }
+        
+        await db.properties.update_one(
+            {"id": property_id, "userId": current_user["id"]},
+            {"$set": update_dict}
+        )
+        
+        # Fetch updated property
+        updated = await db.properties.find_one({"id": property_id})
+        return PropertyResponse(**updated)
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating property: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Root endpoint
 @api_router.get("/")
 async def root():
