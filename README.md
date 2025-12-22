@@ -81,7 +81,7 @@ curl -X POST http://localhost:8001/api/auth/register \
 
 ### 3. Access the App
 
-**Web Preview:** https://realestateinv.preview.emergentagent.com
+**Web Preview:** https://homelite.preview.emergentagent.com
 
 **Mobile:** Use the Expo Go QR code from the preview
 
@@ -163,7 +163,7 @@ SECRET_KEY=auto-generated
 
 **Frontend (.env):**
 ```
-EXPO_PUBLIC_BACKEND_URL=https://realestateinv.preview.emergentagent.com
+EXPO_PUBLIC_BACKEND_URL=https://homelite.preview.emergentagent.com
 ```
 
 ## API Authentication
