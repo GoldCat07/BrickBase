@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -18,7 +18,7 @@ import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { PropertyType, CaseType, PriceUnit, BuilderInfo, Property } from '../../types/property';
-import { useLocalSearchParams, router } from 'expo-router';
+import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import api from '../../lib/api';
 
 const PROPERTY_TYPES: PropertyType[] = ['Plot', 'Builder Floor', 'Villa/House', 'Apartment Society'];
