@@ -233,11 +233,21 @@ export default function SearchScreen() {
                 key={property.id}
                 property={property}
                 onPress={() => handlePropertyPress(property)}
+                onShare={() => setShareProperty(property)}
               />
             ))}
           </View>
         )}
       </ScrollView>
+
+      {/* WhatsApp Share Modal */}
+      {shareProperty && (
+        <WhatsAppShareModal
+          visible={!!shareProperty}
+          property={shareProperty}
+          onClose={() => setShareProperty(null)}
+        />
+      )}
     </SafeAreaView>
   );
 }
