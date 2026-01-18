@@ -9,14 +9,37 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.realestate.inventory",
+      "config": {
+        "googleMapsApiKey": "AIzaSyC46BsGdP0YtuAuxdlgP8rTni1vwmy4oDA"
+      },
+      "infoPlist": {
+        "NSCameraUsageDescription": "Take property photos",
+        "NSPhotoLibraryUsageDescription": "Select property photos",
+        "NSLocationWhenInUseUsageDescription": "Tag photos with location",
+        "NSLocationAlwaysUsageDescription": "Tag photos with location"
+      }
     },
     "android": {
+      "package": "com.realestate.inventory",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#000"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyC46BsGdP0YtuAuxdlgP8rTni1vwmy4oDA"
+        }
+      },
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ]
     },
     "web": {
       "bundler": "metro",
