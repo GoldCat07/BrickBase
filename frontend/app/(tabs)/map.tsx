@@ -11,18 +11,15 @@ import {
   ScrollView,
   TextInput,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   Property,
   PropertyCategory,
   PropertyType,
-  CaseType,
   RESIDENTIAL_PROPERTY_TYPES,
   COMMERCIAL_PROPERTY_TYPES,
-  CASE_TYPES,
 } from '../../types/property';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -30,17 +27,28 @@ import api from '../../lib/api';
 import {
   getCachedProperties,
   cacheProperties,
-  isCacheValid,
   shouldRefreshCache,
   resetRefreshFlag,
 } from '../../lib/cache';
+
+// Conditional import for react-native-maps (doesn't work on web)
+let MapView: any = null;
+let Marker: any = null;
+let PROVIDER_GOOGLE: any = null;
+
+if (Platform.OS !== 'web') {
+  const Maps = require('react-native-maps');
+  MapView = Maps.default;
+  Marker = Maps.Marker;
+  PROVIDER_GOOGLE = Maps.PROVIDER_GOOGLE;
+}
 
 const { width, height } = Dimensions.get('window');
 
 export default function MapScreen() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
-  const mapRef = useRef<MapView>(null);
+  const mapRef = useRef<any>(null);
   const [properties, setProperties] = useState<Property[]>([]);
   const [filteredProperties, setFilteredProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,7 +61,6 @@ export default function MapScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [propertyCategory, setPropertyCategory] = useState<PropertyCategory | ''>('');
   const [selectedType, setSelectedType] = useState<PropertyType | ''>('');
-  const [caseType, setCaseType] = useState<CaseType | ''>('');
   const [includeSold, setIncludeSold] = useState(false);
 
   // Load from cache first, then check if refresh needed
@@ -69,7 +76,7 @@ export default function MapScreen() {
 
   useEffect(() => {
     applyFilters();
-  }, [properties, propertyCategory, selectedType, caseType, searchQuery]);
+  }, [properties, propertyCategory, selectedType, searchQuery]);
 
   const loadPropertiesWithCache = async () => {
     // First, try to load from cache for instant display
@@ -162,10 +169,6 @@ export default function MapScreen() {
       filtered = filtered.filter(p => p.propertyType === selectedType);
     }
 
-    if (caseType) {
-      filtered = filtered.filter(p => p.case === caseType);
-    }
-
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(p =>
@@ -183,11 +186,10 @@ export default function MapScreen() {
     setSearchQuery('');
     setPropertyCategory('');
     setSelectedType('');
-    setCaseType('');
     setIncludeSold(false);
   };
 
-  const hasActiveFilters = !!(searchQuery || propertyCategory || selectedType || caseType || includeSold);
+  const hasActiveFilters = !!(searchQuery || propertyCategory || selectedType || includeSold);
 
   const formatPrice = (property: Property) => {
     if (property.floors && property.floors.length > 0) {
@@ -271,6 +273,22 @@ export default function MapScreen() {
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#fff" />
         <Text style={styles.loadingText}>Loading map...</Text>
+      </View>
+    );
+  }
+
+  // Web fallback - show message
+  if (Platform.OS === 'web' || !MapView) {
+    return (
+      <View style={styles.webFallback}>
+        <Ionicons name="map" size={64} color="#666" />
+        <Text style={styles.webFallbackTitle}>Map View</Text>
+        <Text style={styles.webFallbackText}>
+          Please open this app on your mobile device using Expo Go to view the interactive map.
+        </Text>
+        <Text style={styles.webFallbackCount}>
+          {filteredProperties.length} properties available
+        </Text>
       </View>
     );
   }
@@ -491,6 +509,31 @@ const styles = StyleSheet.create({
     color: '#fff',
     marginTop: 12,
     fontSize: 16,
+  },
+  webFallback: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#0c0c0c',
+    padding: 32,
+  },
+  webFallbackTitle: {
+    color: '#fff',
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginTop: 16,
+  },
+  webFallbackText: {
+    color: '#999',
+    fontSize: 16,
+    textAlign: 'center',
+    marginTop: 12,
+    lineHeight: 24,
+  },
+  webFallbackCount: {
+    color: '#4CAF50',
+    fontSize: 14,
+    marginTop: 24,
   },
   map: {
     flex: 1,
