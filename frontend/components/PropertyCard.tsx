@@ -1,7 +1,7 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Image, Linking, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Image, Linking, Alert, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Property } from '../types/property';
+import { Property, FloorEntry } from '../types/property';
 
 interface PropertyCardProps {
   property: Property;
@@ -15,14 +15,43 @@ export default function PropertyCard({ property, onPress, onShare }: PropertyCar
     if (unit === 'cr') {
       return `₹${price.toFixed(2)} Cr`;
     }
+    if (unit === 'lakh_per_month') {
+      return `₹${price.toFixed(1)} L/mo`;
+    }
     return `₹${price.toFixed(2)} L`;
   };
 
+  const getDisplayPrice = () => {
+    // Handle multi-floor properties
+    if (property.floors && property.floors.length > 0) {
+      const prices = property.floors.map(f => f.price);
+      const minPrice = Math.min(...prices);
+      const maxPrice = Math.max(...prices);
+      const unit = property.floors[0].priceUnit;
+      
+      if (minPrice === maxPrice) {
+        return formatPrice(minPrice, unit);
+      }
+      
+      // Show range
+      const unitLabel = unit === 'cr' ? 'Cr' : unit === 'lakh_per_month' ? 'L/mo' : 'L';
+      return `₹${minPrice.toFixed(0)}-${maxPrice.toFixed(0)} ${unitLabel}`;
+    }
+    
+    return formatPrice(property.price, property.priceUnit);
+  };
+
+  // Use immediate linking for faster call experience
   const handleCall = () => {
     const phoneNumber = property.builders?.[0]?.phoneNumber || property.builderPhone;
     if (phoneNumber) {
       const countryCode = property.builders?.[0]?.countryCode || '+91';
-      Linking.openURL(`tel:${countryCode}${phoneNumber}`);
+      const fullNumber = `${countryCode}${phoneNumber}`;
+      
+      // Use tel: scheme directly for instant dialing
+      Linking.openURL(`tel:${fullNumber}`).catch(() => {
+        Alert.alert('Error', 'Could not open phone app');
+      });
     } else {
       Alert.alert('No Phone Number', 'Builder phone number not available');
     }
@@ -32,7 +61,9 @@ export default function PropertyCard({ property, onPress, onShare }: PropertyCar
     const phoneNumber = property.builders?.[0]?.phoneNumber || property.builderPhone;
     if (phoneNumber) {
       const countryCode = (property.builders?.[0]?.countryCode || '+91').replace('+', '');
-      Linking.openURL(`https://wa.me/${countryCode}${phoneNumber}`);
+      Linking.openURL(`https://wa.me/${countryCode}${phoneNumber}`).catch(() => {
+        Alert.alert('Error', 'Could not open WhatsApp');
+      });
     } else {
       Alert.alert('No Phone Number', 'Builder phone number not available');
     }
@@ -54,6 +85,21 @@ export default function PropertyCard({ property, onPress, onShare }: PropertyCar
     return email.charAt(0).toUpperCase();
   };
 
+  // Display floor count for multi-floor properties
+  const getFloorInfo = () => {
+    if (property.floors && property.floors.length > 0) {
+      const soldCount = property.floors.filter(f => f.isSold).length;
+      if (soldCount > 0) {
+        return `${property.floors.length} floors (${soldCount} sold)`;
+      }
+      return `${property.floors.length} floors`;
+    }
+    if (property.floor) {
+      return `Floor ${property.floor}`;
+    }
+    return null;
+  };
+
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.9}>
       {coverPhoto && (
@@ -65,14 +111,26 @@ export default function PropertyCard({ property, onPress, onShare }: PropertyCar
               <Ionicons name="share-social-outline" size={20} color="#fff" />
             </TouchableOpacity>
           )}
+          {/* Sold badge */}
+          {property.isSold && (
+            <View style={styles.soldBadge}>
+              <Text style={styles.soldBadgeText}>SOLD</Text>
+            </View>
+          )}
+          {/* Category badge */}
+          {property.propertyCategory && (
+            <View style={styles.categoryBadge}>
+              <Text style={styles.categoryBadgeText}>{property.propertyCategory}</Text>
+            </View>
+          )}
         </View>
       )}
       <View style={styles.content}>
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <Text style={styles.type}>{property.propertyType || 'Property'}</Text>
-            {property.floor && (
-              <Text style={styles.floor}>Floor {property.floor}</Text>
+            {getFloorInfo() && (
+              <Text style={styles.floor}>{getFloorInfo()}</Text>
             )}
           </View>
           {/* Posted By */}
@@ -91,7 +149,16 @@ export default function PropertyCard({ property, onPress, onShare }: PropertyCar
           )}
         </View>
         
-        <Text style={styles.price}>{formatPrice(property.price, property.priceUnit)}</Text>
+        <Text style={styles.price}>{getDisplayPrice()}</Text>
+        
+        {/* Address */}
+        {property.address && (property.address.sector || property.address.city) && (
+          <Text style={styles.address} numberOfLines={1}>
+            {property.address.sector}
+            {property.address.sector && property.address.city && ', '}
+            {property.address.city}
+          </Text>
+        )}
         
         {features.length > 0 && (
           <View style={styles.features}>
@@ -155,6 +222,33 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 8,
   },
+  soldBadge: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    backgroundColor: '#ff4444',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  soldBadgeText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 11,
+  },
+  categoryBadge: {
+    position: 'absolute',
+    bottom: 12,
+    left: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  categoryBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+  },
   content: {
     padding: 16,
   },
@@ -212,6 +306,11 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 24,
     fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  address: {
+    color: '#666',
+    fontSize: 13,
     marginBottom: 12,
   },
   features: {
