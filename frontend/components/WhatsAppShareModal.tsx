@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,12 +8,14 @@ import {
   Image,
   Dimensions,
   Modal,
+  Share,
   Alert,
-  Linking,
-  ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Property, SIZE_UNITS } from '../types/property';
+import { Property } from '../types/property';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 
 const { width, height } = Dimensions.get('window');
 const PHOTO_HEIGHT = height * 0.28;
@@ -32,95 +34,62 @@ interface FieldOption {
 }
 
 export default function WhatsAppShareModal({ visible, property, onClose }: WhatsAppShareModalProps) {
+  const [selectedPhotos, setSelectedPhotos] = useState<boolean[]>(
+    property.propertyPhotos?.map(() => true) || []
+  );
   const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
-  const [sharing, setSharing] = useState(false);
   
-  const getSizeUnitLabel = (unit: string) => {
-    const found = SIZE_UNITS.find(u => u.value === unit);
-    return found?.label || unit;
-  };
-
-  const getSizeTypeLabel = (type: string) => {
-    switch (type) {
-      case 'carpet': return 'Carpet Area';
-      case 'builtup': return 'Built-up Area';
-      case 'superbuiltup': return 'Super Built-up Area';
-      default: return type;
-    }
-  };
-  
+  // Build field options from property data
   const buildFieldOptions = useCallback((): FieldOption[] => {
     const fields: FieldOption[] = [];
-    
-    if (property.propertyCategory) {
-      fields.push({ key: 'propertyCategory', label: 'Category', value: property.propertyCategory, selected: true });
-    }
     
     if (property.propertyType) {
       fields.push({ key: 'propertyType', label: 'Property Type', value: property.propertyType, selected: true });
     }
     
-    if (property.floors && property.floors.length > 0) {
-      const floorPrices = property.floors.map(f => {
-        const unit = f.priceUnit === 'cr' ? 'Cr' : f.priceUnit === 'lakh_per_month' ? 'L/mo' : 'L';
-        return `Floor ${f.floorNumber}: ₹${f.price} ${unit}`;
-      }).join('\n');
-      fields.push({ key: 'floors', label: 'Floor Prices', value: floorPrices, selected: true });
-    } else if (property.price) {
+    if (property.price) {
       const priceStr = property.priceUnit === 'cr' 
-        ? `₹${property.price} Cr` 
-        : property.priceUnit === 'lakh_per_month'
-        ? `₹${property.price} Lakhs/month`
-        : `₹${property.price} Lakhs`;
+        ? `₹${property.price.toFixed(2)} Cr` 
+        : `₹${property.price.toFixed(2)} Lakhs`;
       fields.push({ key: 'price', label: 'Price', value: priceStr, selected: true });
     }
     
-    if (property.floor && (!property.floors || property.floors.length === 0)) {
+    if (property.floor) {
       fields.push({ key: 'floor', label: 'Floor', value: String(property.floor), selected: true });
     }
-
-    if (property.sizes && property.sizes.length > 0) {
-      const sizesStr = property.sizes.map(s => 
-        `${getSizeTypeLabel(s.type)}: ${s.value} ${getSizeUnitLabel(s.unit)}`
-      ).join('\n');
-      fields.push({ key: 'sizes', label: 'Size', value: sizesStr, selected: true });
+    
+    const builderName = property.builders?.[0]?.name || property.builderName;
+    if (builderName) {
+      fields.push({ key: 'builderName', label: 'Builder Name', value: builderName, selected: true });
     }
     
-    if (property.address && (property.address.sector || property.address.city)) {
-      let addressStr = '';
-      if (property.address.unitNo) addressStr += `Unit ${property.address.unitNo}, `;
-      if (property.address.block) addressStr += `Block ${property.address.block}, `;
-      if (property.address.sector) addressStr += property.address.sector;
-      if (property.address.city) addressStr += `, ${property.address.city}`;
-      fields.push({ key: 'address', label: 'Address', value: addressStr.trim(), selected: true });
+    const builderPhone = property.builders?.[0]?.phoneNumber || property.builderPhone;
+    if (builderPhone) {
+      const countryCode = property.builders?.[0]?.countryCode || '+91';
+      fields.push({ key: 'builderPhone', label: 'Builder Phone', value: `${countryCode} ${builderPhone}`, selected: true });
     }
     
     if (property.propertyAge) {
       fields.push({ key: 'propertyAge', label: 'Property Age', value: `${property.propertyAge} years`, selected: true });
     }
-
-    if (property.ageType) {
-      const ageTypeDisplay = property.ageType === 'UnderConstruction' ? 'Under Construction' : property.ageType;
-      fields.push({ key: 'ageType', label: 'Age Type', value: ageTypeDisplay, selected: true });
-    }
     
     if (property.case) {
-      fields.push({ key: 'case', label: 'Case Type', value: property.case.replace(/_/g, ' '), selected: true });
+      fields.push({ key: 'case', label: 'Case Type', value: property.case.replace('_', ' '), selected: true });
     }
     
     if (property.paymentPlan) {
       fields.push({ key: 'paymentPlan', label: 'Payment Plan', value: property.paymentPlan, selected: true });
     }
     
-    if (property.possessionMonth || property.possessionYear) {
-      const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-      let possessionStr = '';
-      if (property.possessionMonth) possessionStr += months[property.possessionMonth - 1];
-      if (property.possessionMonth && property.possessionYear) possessionStr += ' ';
-      if (property.possessionYear) possessionStr += property.possessionYear.toString();
-      fields.push({ key: 'possession', label: 'Possession', value: possessionStr, selected: true });
+    if (property.possessionDate) {
+      fields.push({ key: 'possessionDate', label: 'Possession Date', value: property.possessionDate, selected: true });
     }
     
+    if (property.handoverDate) {
+      fields.push({ key: 'handoverDate', label: 'Handover Date', value: property.handoverDate, selected: true });
+    }
+    
+    // Features
     const features: string[] = [];
     if (property.clubProperty) features.push('Club');
     if (property.poolProperty) features.push('Pool');
@@ -135,16 +104,33 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
       fields.push({ key: 'additionalNotes', label: 'Additional Notes', value: property.additionalNotes, selected: true });
     }
     
+    if (property.latitude && property.longitude) {
+      fields.push({ 
+        key: 'location', 
+        label: 'Location', 
+        value: `${property.latitude.toFixed(6)}, ${property.longitude.toFixed(6)}`, 
+        selected: true 
+      });
+    }
+    
     return fields;
   }, [property]);
   
   const [fieldOptions, setFieldOptions] = useState<FieldOption[]>(buildFieldOptions());
   
-  useEffect(() => {
+  // Reset state when modal opens
+  React.useEffect(() => {
     if (visible) {
+      setSelectedPhotos(property.propertyPhotos?.map(() => true) || []);
       setFieldOptions(buildFieldOptions());
     }
   }, [visible, property, buildFieldOptions]);
+  
+  const togglePhoto = (index: number) => {
+    const newSelected = [...selectedPhotos];
+    newSelected[index] = !newSelected[index];
+    setSelectedPhotos(newSelected);
+  };
   
   const toggleField = (key: string) => {
     setFieldOptions(prev => 
@@ -152,6 +138,10 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
         field.key === key ? { ...field, selected: !field.selected } : field
       )
     );
+  };
+  
+  const handlePhotoPress = (index: number) => {
+    togglePhoto(index);
   };
   
   const handlePhotoLongPress = (photo: string) => {
@@ -168,27 +158,46 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
     
     return text;
   };
-
-  // Simple and reliable - just open WhatsApp with text
-  const shareToWhatsApp = async () => {
+  
+  const handleShare = async () => {
     try {
-      setSharing(true);
       const shareText = generateShareText();
-      const encodedText = encodeURIComponent(shareText);
+      const selectedPhotoUris = property.propertyPhotos?.filter((_, i) => selectedPhotos[i]) || [];
       
-      // Try WhatsApp URL scheme
-      const whatsappUrl = `whatsapp://send?text=${encodedText}`;
+      if (selectedPhotoUris.length === 0) {
+        // Share text only
+        await Share.share({
+          message: shareText,
+        });
+      } else {
+        // On iOS/Android, we need to use expo-sharing for images
+        // First, try sharing just the text as the native Share API doesn't support base64 images directly
+        if (Platform.OS === 'web') {
+          await Share.share({
+            message: shareText,
+          });
+        } else {
+          // For mobile, we'll try to share with available options
+          // Note: WhatsApp doesn't support sharing multiple images via URL scheme
+          // So we'll share the text and ask user to manually attach images
+          const result = await Share.share({
+            message: shareText + '\n\n(Please attach selected photos when sharing)',
+          });
+          
+          if (result.action === Share.sharedAction) {
+            console.log('Shared successfully');
+          }
+        }
+      }
       
-      await Linking.openURL(whatsappUrl);
       onClose();
-    } catch (error) {
-      console.error('WhatsApp error:', error);
-      Alert.alert('Error', 'Could not open WhatsApp. Please make sure WhatsApp is installed.');
-    } finally {
-      setSharing(false);
+    } catch (error: any) {
+      console.error('Error sharing:', error);
+      Alert.alert('Error', 'Failed to share. Please try again.');
     }
   };
   
+  const selectedPhotosCount = selectedPhotos.filter(Boolean).length;
   const selectedFieldsCount = fieldOptions.filter(f => f.selected).length;
   
   return (
@@ -199,6 +208,7 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
       onRequestClose={onClose}
     >
       <View style={styles.container}>
+        {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
             <Ionicons name="close" size={24} color="#fff" />
@@ -207,18 +217,18 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
           <View style={styles.placeholder} />
         </View>
         
+        {/* Selection Summary */}
         <View style={styles.summary}>
           <Text style={styles.summaryText}>
-            {selectedFieldsCount} field(s) selected
+            {selectedPhotosCount} photo(s) • {selectedFieldsCount} field(s) selected
           </Text>
         </View>
         
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-          {/* Photos Preview (read-only, for reference) */}
+          {/* Photos Section */}
           {property.propertyPhotos && property.propertyPhotos.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Photos</Text>
-              <Text style={styles.sectionSubtitle}>Long press to preview. Photos shared separately.</Text>
+              <Text style={styles.sectionTitle}>Photos (tap to select/deselect)</Text>
               <ScrollView 
                 horizontal 
                 showsHorizontalScrollIndicator={false}
@@ -227,21 +237,33 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
                 {property.propertyPhotos.map((photo, index) => (
                   <TouchableOpacity
                     key={index}
-                    style={styles.photoContainer}
+                    style={[
+                      styles.photoContainer,
+                      selectedPhotos[index] && styles.photoSelected,
+                    ]}
+                    onPress={() => handlePhotoPress(index)}
                     onLongPress={() => handlePhotoLongPress(photo)}
                     delayLongPress={500}
                   >
                     <Image source={{ uri: photo }} style={styles.photo} />
+                    {selectedPhotos[index] && (
+                      <View style={styles.photoCheckmark}>
+                        <Ionicons name="checkmark-circle" size={28} color="#4CAF50" />
+                      </View>
+                    )}
+                    {!selectedPhotos[index] && (
+                      <View style={styles.photoOverlay} />
+                    )}
                   </TouchableOpacity>
                 ))}
               </ScrollView>
+              <Text style={styles.photoHint}>Long press to preview</Text>
             </View>
           )}
           
-          {/* Property Details Selection */}
+          {/* Fields Section */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Property Details</Text>
-            <Text style={styles.sectionSubtitle}>Tap to include/exclude from message</Text>
             {fieldOptions.map((field) => (
               <TouchableOpacity
                 key={field.key}
@@ -253,7 +275,7 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
               >
                 <View style={styles.fieldInfo}>
                   <Text style={styles.fieldLabel}>{field.label}</Text>
-                  <Text style={styles.fieldValue} numberOfLines={3}>{field.value}</Text>
+                  <Text style={styles.fieldValue} numberOfLines={2}>{field.value}</Text>
                 </View>
                 <Ionicons 
                   name={field.selected ? 'checkbox' : 'square-outline'} 
@@ -264,20 +286,13 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
             ))}
           </View>
           
+          {/* Bottom Padding */}
           <View style={{ height: 100 }} />
         </ScrollView>
         
         {/* Share Button */}
-        <TouchableOpacity 
-          style={[styles.shareButton, sharing && styles.shareButtonDisabled]} 
-          onPress={shareToWhatsApp}
-          disabled={sharing}
-        >
-          {sharing ? (
-            <ActivityIndicator color="#fff" size="small" />
-          ) : (
-            <Ionicons name="logo-whatsapp" size={28} color="#fff" />
-          )}
+        <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
+          <Ionicons name="arrow-forward" size={24} color="#fff" />
         </TouchableOpacity>
         
         {/* Photo Preview Modal */}
@@ -357,11 +372,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
-    marginBottom: 4,
-  },
-  sectionSubtitle: {
-    color: '#666',
-    fontSize: 12,
     marginBottom: 12,
   },
   photoScroll: {
@@ -369,18 +379,37 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   photoContainer: {
-    width: width * 0.5,
+    width: width * 0.6,
     height: PHOTO_HEIGHT,
     marginRight: 12,
     borderRadius: 12,
     overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: '#333',
+    borderWidth: 3,
+    borderColor: 'transparent',
+  },
+  photoSelected: {
+    borderColor: '#4CAF50',
   },
   photo: {
     width: '100%',
     height: '100%',
     backgroundColor: '#333',
+  },
+  photoCheckmark: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: '#fff',
+    borderRadius: 14,
+  },
+  photoOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  photoHint: {
+    color: '#666',
+    fontSize: 12,
+    marginTop: 8,
   },
   fieldItem: {
     flexDirection: 'row',
@@ -424,9 +453,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
-  },
-  shareButtonDisabled: {
-    backgroundColor: '#666',
   },
   previewOverlay: {
     flex: 1,
