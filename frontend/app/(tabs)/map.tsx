@@ -12,6 +12,7 @@ import {
   TextInput,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { useAuth } from '../../contexts/AuthContext';
 import {
@@ -19,56 +20,46 @@ import {
   PropertyCategory,
   PropertyType,
   CaseType,
-  AgeType,
   RESIDENTIAL_PROPERTY_TYPES,
   COMMERCIAL_PROPERTY_TYPES,
   CASE_TYPES,
-  AGE_TYPES,
 } from '../../types/property';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../../lib/api';
-
-// Only import react-native-maps on native
-let MapView: any = null;
-let Marker: any = null;
-let PROVIDER_GOOGLE: any = null;
-
-if (Platform.OS !== 'web') {
-  try {
-    const Maps = require('react-native-maps');
-    MapView = Maps.default;
-    Marker = Maps.Marker;
-    PROVIDER_GOOGLE = Maps.PROVIDER_GOOGLE;
-  } catch (e) {
-    console.log('react-native-maps not available');
-  }
-}
+import {
+  getCachedProperties,
+  cacheProperties,
+  isCacheValid,
+  shouldRefreshCache,
+  resetRefreshFlag,
+} from '../../lib/cache';
 
 const { width, height } = Dimensions.get('window');
 
 export default function MapScreen() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
-  const mapRef = useRef<any>(null);
+  const mapRef = useRef<MapView>(null);
   const [properties, setProperties] = useState<Property[]>([]);
   const [filteredProperties, setFilteredProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [propertyCategory, setPropertyCategory] = useState<PropertyCategory | ''>('');
   const [selectedType, setSelectedType] = useState<PropertyType | ''>('');
   const [caseType, setCaseType] = useState<CaseType | ''>('');
-  const [ageType, setAgeType] = useState<AgeType | ''>('');
   const [includeSold, setIncludeSold] = useState(false);
 
+  // Load from cache first, then check if refresh needed
   useFocusEffect(
     useCallback(() => {
-      fetchProperties();
+      loadPropertiesWithCache();
     }, [includeSold])
   );
 
@@ -78,14 +69,75 @@ export default function MapScreen() {
 
   useEffect(() => {
     applyFilters();
-  }, [properties, propertyCategory, selectedType, caseType, ageType, searchQuery]);
+  }, [properties, propertyCategory, selectedType, caseType, searchQuery]);
+
+  const loadPropertiesWithCache = async () => {
+    // First, try to load from cache for instant display
+    const cached = await getCachedProperties();
+    if (cached && cached.length > 0) {
+      const withLocation = cached.filter((p: Property) => p.latitude && p.longitude);
+      setProperties(withLocation);
+      setLoading(false);
+      setInitialLoadDone(true);
+      
+      // Check if we need to refresh (new property added)
+      if (shouldRefreshCache()) {
+        fetchPropertiesInBackground();
+      }
+    } else {
+      // No cache, need to fetch
+      await fetchProperties();
+    }
+  };
+
+  const fetchPropertiesInBackground = async () => {
+    try {
+      const params = new URLSearchParams();
+      if (includeSold) params.append('include_sold', 'true');
+      const response = await api.get(`/properties?${params.toString()}`);
+      
+      const allProperties = response.data || [];
+      const withLocation = allProperties.filter((p: Property) => p.latitude && p.longitude);
+      
+      // Update cache
+      await cacheProperties(allProperties);
+      resetRefreshFlag();
+      
+      // Update state
+      setProperties(withLocation);
+    } catch (error) {
+      console.error('Background fetch error:', error);
+    }
+  };
+
+  const fetchProperties = async () => {
+    try {
+      setLoading(true);
+      const params = new URLSearchParams();
+      if (includeSold) params.append('include_sold', 'true');
+      const response = await api.get(`/properties?${params.toString()}`);
+      
+      const allProperties = response.data || [];
+      const withLocation = allProperties.filter((p: Property) => p.latitude && p.longitude);
+      
+      // Cache for future use
+      await cacheProperties(allProperties);
+      resetRefreshFlag();
+      
+      setProperties(withLocation);
+    } catch (error) {
+      console.error('Error fetching properties:', error);
+    } finally {
+      setLoading(false);
+      setInitialLoadDone(true);
+    }
+  };
 
   const getCurrentLocation = async () => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         console.log('Location permission denied');
-        setLoading(false);
         return;
       }
 
@@ -96,24 +148,6 @@ export default function MapScreen() {
       });
     } catch (error) {
       console.error('Error getting location:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchProperties = async () => {
-    try {
-      const params = new URLSearchParams();
-      if (includeSold) params.append('include_sold', 'true');
-      const response = await api.get(`/properties?${params.toString()}`);
-      
-      const propertiesWithLocation = (response.data || []).filter(
-        (p: Property) => p.latitude && p.longitude
-      );
-      
-      setProperties(propertiesWithLocation);
-    } catch (error) {
-      console.error('Error fetching properties:', error);
     }
   };
 
@@ -130,10 +164,6 @@ export default function MapScreen() {
 
     if (caseType) {
       filtered = filtered.filter(p => p.case === caseType);
-    }
-
-    if (ageType) {
-      filtered = filtered.filter(p => p.ageType === ageType);
     }
 
     if (searchQuery) {
@@ -154,11 +184,10 @@ export default function MapScreen() {
     setPropertyCategory('');
     setSelectedType('');
     setCaseType('');
-    setAgeType('');
     setIncludeSold(false);
   };
 
-  const hasActiveFilters = !!(searchQuery || propertyCategory || selectedType || caseType || ageType || includeSold);
+  const hasActiveFilters = !!(searchQuery || propertyCategory || selectedType || caseType || includeSold);
 
   const formatPrice = (property: Property) => {
     if (property.floors && property.floors.length > 0) {
@@ -173,12 +202,12 @@ export default function MapScreen() {
     }
     if (!property.price) return 'N/A';
     if (property.priceUnit === 'cr') {
-      return `₹${property.price.toFixed(2)}Cr`;
+      return `₹${property.price}Cr`;
     }
     if (property.priceUnit === 'lakh_per_month') {
-      return `₹${property.price.toFixed(1)}L/mo`;
+      return `₹${property.price}L/mo`;
     }
-    return `₹${property.price.toFixed(1)}L`;
+    return `₹${property.price}L`;
   };
 
   const handlePropertyPress = (property: Property) => {
@@ -209,6 +238,7 @@ export default function MapScreen() {
   };
 
   const getInitialRegion = () => {
+    // First priority: user location
     if (userLocation) {
       return {
         latitude: userLocation.latitude,
@@ -217,7 +247,16 @@ export default function MapScreen() {
         longitudeDelta: 0.05,
       };
     }
-    // Default to India (Delhi area)
+    // Second priority: first property with location
+    if (filteredProperties.length > 0 && filteredProperties[0].latitude) {
+      return {
+        latitude: filteredProperties[0].latitude,
+        longitude: filteredProperties[0].longitude!,
+        latitudeDelta: 0.05,
+        longitudeDelta: 0.05,
+      };
+    }
+    // Default: Delhi, India
     return {
       latitude: 28.6139,
       longitude: 77.209,
@@ -226,53 +265,8 @@ export default function MapScreen() {
     };
   };
 
-  // Show web fallback only on web
-  if (Platform.OS === 'web' || !MapView) {
-    return (
-      <SafeAreaView style={styles.container} edges={['bottom']}>
-        <ScrollView 
-          style={styles.scrollView}
-          contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 16) + 80 }}
-        >
-          <View style={styles.webFallback}>
-            <Ionicons name="map" size={64} color="#4CAF50" />
-            <Text style={styles.webFallbackTitle}>Map View</Text>
-            <Text style={styles.webFallbackText}>
-              Interactive map is available on mobile devices via Expo Go app.
-            </Text>
-            <Text style={styles.propertyCount}>
-              {filteredProperties.length} properties with location data
-            </Text>
-          </View>
-          
-          {/* Property List */}
-          <View style={styles.listSection}>
-            <Text style={styles.sectionTitle}>Properties with Location</Text>
-            {filteredProperties.map((property) => (
-              <TouchableOpacity
-                key={property.id}
-                style={styles.propertyItem}
-                onPress={() => handlePropertyPress(property)}
-              >
-                {property.propertyPhotos?.[0] && (
-                  <Image 
-                    source={{ uri: property.propertyPhotos[0] }} 
-                    style={styles.propertyImage}
-                  />
-                )}
-                <View style={styles.propertyContent}>
-                  <Text style={styles.propertyType}>{property.propertyType}</Text>
-                  <Text style={styles.propertyPrice}>{formatPrice(property)}</Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </ScrollView>
-      </SafeAreaView>
-    );
-  }
-
-  if (loading) {
+  // Loading state only on first load
+  if (loading && !initialLoadDone) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#fff" />
@@ -281,9 +275,9 @@ export default function MapScreen() {
     );
   }
 
-  // Native Map View
   return (
     <View style={styles.container}>
+      {/* Map */}
       <MapView
         ref={mapRef}
         style={styles.map}
@@ -500,69 +494,6 @@ const styles = StyleSheet.create({
   },
   map: {
     flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  webFallback: {
-    alignItems: 'center',
-    padding: 32,
-    backgroundColor: '#1a1a1a',
-    margin: 16,
-    borderRadius: 16,
-  },
-  webFallbackTitle: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginTop: 16,
-  },
-  webFallbackText: {
-    color: '#999',
-    fontSize: 14,
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  propertyCount: {
-    color: '#4CAF50',
-    fontSize: 14,
-    marginTop: 16,
-  },
-  listSection: {
-    padding: 16,
-  },
-  sectionTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 16,
-  },
-  propertyItem: {
-    flexDirection: 'row',
-    backgroundColor: '#1a1a1a',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-    gap: 12,
-  },
-  propertyImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 8,
-    backgroundColor: '#333',
-  },
-  propertyContent: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  propertyType: {
-    color: '#999',
-    fontSize: 12,
-  },
-  propertyPrice: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
   },
   // Marker styles
   markerContainer: {
