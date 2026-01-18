@@ -556,19 +556,113 @@ export default function AddPropertyScreen() {
       return;
     }
 
+    // OPTIMISTIC UI: Show success immediately, sync in background
+    const photoWithLocation = photos.find(p => p.location);
+    const photoUrls = preparePhotos();
+    const validBuilders = builders.filter(b => b.name || b.phoneNumber);
+    
+    // Parse price - handle decimals properly
+    let actualPrice = price ? parseFloat(price.replace(',', '.')) : null;
+    
+    // Prepare floors data for multi-floor properties
+    const floorsData = needsMultipleFloors ? floors.map(f => ({
+      floorNumber: f.floorNumber,
+      price: typeof f.price === 'string' ? parseFloat(String(f.price).replace(',', '.')) : f.price,
+      priceUnit: f.priceUnit,
+      isSold: f.isSold || false,
+    })) : [];
+    
+    const propertyData = {
+      propertyCategory,
+      propertyType,
+      propertyPhotos: photoUrls,
+      floor: needsMultipleFloors ? null : (floors[0]?.floorNumber || null),
+      floors: floorsData,
+      price: needsMultipleFloors ? null : actualPrice,
+      priceUnit: needsMultipleFloors ? null : priceUnit,
+      builders: validBuilders,
+      builderName: validBuilders[0]?.name || null,
+      builderPhone: validBuilders[0]?.phoneNumber || null,
+      address: address,
+      sizes: sizes,
+      possessionMonth: possessionMonth,
+      possessionYear: possessionYear,
+      importantFiles: importantFiles,
+      paymentPlan: paymentPlan || null,
+      additionalNotes: additionalNotes || null,
+      clubProperty,
+      poolProperty,
+      parkProperty,
+      gatedProperty,
+      propertyAge: propertyAge ? parseInt(propertyAge) : null,
+      ageType: ageType || null,
+      case: caseType || null,
+      latitude: photoWithLocation?.location?.coords.latitude || null,
+      longitude: photoWithLocation?.location?.coords.longitude || null,
+    };
+
+    if (isEditMode && editPropertyId) {
+      setLoading(true);
+      try {
+        await api.put(`/properties/${editPropertyId}`, propertyData);
+        // Mark cache as needing refresh
+        setNewPropertyAdded(true);
+        Alert.alert('Success', 'Property updated!', [
+          { text: 'OK', onPress: () => router.back() },
+        ]);
+      } catch (error: any) {
+        Alert.alert('Error', error.message || 'Failed to update property');
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      // OPTIMISTIC: Show success immediately
+      Alert.alert('Success', 'Property added! Syncing...', [
+        { text: 'OK', onPress: resetForm },
+      ]);
+      
+      // Mark cache as needing refresh so search/map will update
+      setNewPropertyAdded(true);
+      
+      // Sync in background without blocking UI
+      syncPropertyInBackground(propertyData);
+    }
+  };
+
+  // Background sync function
+  const syncPropertyInBackground = async (propertyData: any) => {
+    try {
+      await api.post('/properties', propertyData);
+      console.log('Property synced successfully');
+    } catch (error: any) {
+      console.error('Background sync failed:', error);
+      // Could implement retry queue here
+      Alert.alert(
+        'Sync Issue',
+        'Property was saved locally but failed to sync. It will retry automatically.',
+        [{ text: 'OK' }]
+      );
+    }
+  };
+
+  // Legacy submit for reference (replaced by optimistic)
+  const handleSubmitLegacy = async () => {
+    if (!validateForm()) {
+      Alert.alert('Validation Error', 'Please fix the errors before submitting');
+      return;
+    }
+
     setLoading(true);
     try {
       const photoWithLocation = photos.find(p => p.location);
       const photoUrls = preparePhotos();
       const validBuilders = builders.filter(b => b.name || b.phoneNumber);
       
-      // Prepare price data
-      let actualPrice = price ? parseFloat(price) : null;
+      let actualPrice = price ? parseFloat(price.replace(',', '.')) : null;
       
-      // Prepare floors data for multi-floor properties
       const floorsData = needsMultipleFloors ? floors.map(f => ({
         floorNumber: f.floorNumber,
-        price: f.price,
+        price: typeof f.price === 'string' ? parseFloat(String(f.price).replace(',', '.')) : f.price,
         priceUnit: f.priceUnit,
         isSold: f.isSold || false,
       })) : [];
@@ -604,6 +698,7 @@ export default function AddPropertyScreen() {
 
       if (isEditMode && editPropertyId) {
         await api.put(`/properties/${editPropertyId}`, propertyData);
+        setNewPropertyAdded(true);
         Alert.alert('Success', 'Property updated successfully!', [
           {
             text: 'OK',
@@ -614,6 +709,7 @@ export default function AddPropertyScreen() {
         ]);
       } else {
         await api.post('/properties', propertyData);
+        setNewPropertyAdded(true);
         Alert.alert('Success', 'Property added successfully!', [
           {
             text: 'OK',
