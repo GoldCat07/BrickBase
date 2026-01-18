@@ -175,9 +175,9 @@ Edit `/app/frontend/.env` and add your Supabase credentials:
 
 ```env
 # Existing variables (DO NOT MODIFY)
-EXPO_TUNNEL_SUBDOMAIN=realestateinv
-EXPO_PACKAGER_HOSTNAME=https://homelite.preview.emergentagent.com
-EXPO_PUBLIC_BACKEND_URL=https://homelite.preview.emergentagent.com
+EXPO_TUNNEL_SUBDOMAIN=property-form-update
+EXPO_PACKAGER_HOSTNAME=https://property-form-update.preview.emergentagent.com
+EXPO_PUBLIC_BACKEND_URL=https://property-form-update.preview.emergentagent.com
 EXPO_USE_FAST_RESOLVER="1"
 METRO_CACHE_ROOT=/app/frontend/.metro-cache
 
