@@ -15,7 +15,6 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Property, SIZE_UNITS } from '../types/property';
-import * as Clipboard from 'expo-clipboard';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system';
 
@@ -187,124 +186,87 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
     return text;
   };
 
-  // Download image to local cache and return local URI
-  const downloadImageToCache = async (imageUri: string, index: number): Promise<string | null> => {
+  // Save base64 image to local file
+  const saveImageToFile = async (imageUri: string, index: number): Promise<string | null> => {
     try {
-      const filename = `property_share_${Date.now()}_${index}.jpg`;
+      const filename = `property_${Date.now()}_${index}.jpg`;
       const localUri = `${FileSystem.cacheDirectory}${filename}`;
       
       if (imageUri.startsWith('data:image')) {
-        // Base64 image - extract and write to file
+        // Base64 image - extract and save
         const base64Data = imageUri.split(',')[1];
         await FileSystem.writeAsStringAsync(localUri, base64Data, {
           encoding: FileSystem.EncodingType.Base64,
         });
         return localUri;
       } else if (imageUri.startsWith('http')) {
-        // Remote URL - download it
-        const downloadResult = await FileSystem.downloadAsync(imageUri, localUri);
-        return downloadResult.uri;
-      } else {
-        // Already a local file
-        return imageUri;
+        // Remote URL - download
+        const result = await FileSystem.downloadAsync(imageUri, localUri);
+        return result.uri;
       }
+      return imageUri;
     } catch (error) {
-      console.error('Error downloading image:', error);
+      console.error('Error saving image:', error);
       return null;
     }
   };
 
-  const shareWithPhotos = async () => {
+  const shareToWhatsApp = async () => {
     try {
       setSharing(true);
       const shareText = generateShareText();
       const selectedPhotoData = property.propertyPhotos?.filter((_, i) => selectedPhotos[i]) || [];
       
-      // Copy text to clipboard first
-      await Clipboard.setStringAsync(shareText);
+      // Check if sharing is available
+      const isAvailable = await Sharing.isAvailableAsync();
       
-      if (selectedPhotoData.length === 0) {
-        // No photos - share text only via WhatsApp
-        const encodedText = encodeURIComponent(shareText);
-        const whatsappUrl = `whatsapp://send?text=${encodedText}`;
+      if (selectedPhotoData.length > 0 && isAvailable) {
+        // Save first selected image to cache
+        const localUri = await saveImageToFile(selectedPhotoData[0], 0);
         
-        const canOpen = await Linking.canOpenURL(whatsappUrl);
-        if (canOpen) {
-          await Linking.openURL(whatsappUrl);
-        } else {
-          Alert.alert('Copied!', 'Text copied to clipboard. Open WhatsApp and paste it.');
+        if (localUri) {
+          // Open native share sheet with the image
+          // User can then select WhatsApp and add text as caption
+          await Sharing.shareAsync(localUri, {
+            mimeType: 'image/jpeg',
+            dialogTitle: shareText, // This shows in the share dialog on some platforms
+            UTI: 'public.jpeg', // iOS specific
+          });
+          onClose();
+          
+          // Clean up temp file after a delay
+          setTimeout(async () => {
+            try {
+              await FileSystem.deleteAsync(localUri, { idempotent: true });
+            } catch (e) {}
+          }, 5000);
+          return;
         }
-        onClose();
-        return;
       }
-
-      // Check if expo-sharing is available
-      const sharingAvailable = await Sharing.isAvailableAsync();
       
-      if (!sharingAvailable) {
-        // Fallback for web or when sharing is not available
-        const encodedText = encodeURIComponent(shareText);
-        await Linking.openURL(`whatsapp://send?text=${encodedText}`);
-        Alert.alert('Note', 'Text sent to WhatsApp. Photo sharing requires the mobile app.');
-        onClose();
-        return;
-      }
-
-      // Download the first selected photo to cache
-      const localUri = await downloadImageToCache(selectedPhotoData[0], 0);
+      // Fallback: No photos or sharing not available - open WhatsApp directly with text
+      const encodedText = encodeURIComponent(shareText);
+      const whatsappUrl = `whatsapp://send?text=${encodedText}`;
       
-      if (!localUri) {
-        throw new Error('Could not prepare image for sharing');
+      const canOpen = await Linking.canOpenURL(whatsappUrl);
+      if (canOpen) {
+        await Linking.openURL(whatsappUrl);
+      } else {
+        Alert.alert('WhatsApp not found', 'Please install WhatsApp to share.');
       }
-
-      // Show instruction about text being copied
-      Alert.alert(
-        'Ready to Share!',
-        'Property details have been copied to clipboard.\n\n1. Share the image first\n2. Then paste the text as caption in WhatsApp',
-        [
-          {
-            text: 'Share Image',
-            onPress: async () => {
-              try {
-                await Sharing.shareAsync(localUri, {
-                  mimeType: 'image/jpeg',
-                  dialogTitle: 'Share Property Photo',
-                });
-                // Cleanup temp file
-                try {
-                  await FileSystem.deleteAsync(localUri, { idempotent: true });
-                } catch (e) {}
-              } catch (e) {
-                console.error('Share error:', e);
-              }
-              onClose();
-            }
-          },
-          {
-            text: 'Cancel',
-            style: 'cancel',
-            onPress: onClose
-          }
-        ]
-      );
+      onClose();
       
     } catch (error: any) {
-      console.error('Error sharing:', error);
+      console.error('Share error:', error);
       
-      // Fallback: just share text via WhatsApp
+      // Final fallback - try opening WhatsApp with just text
       try {
         const shareText = generateShareText();
-        await Clipboard.setStringAsync(shareText);
         const encodedText = encodeURIComponent(shareText);
-        const canOpen = await Linking.canOpenURL(`whatsapp://send?text=${encodedText}`);
-        if (canOpen) {
-          await Linking.openURL(`whatsapp://send?text=${encodedText}`);
-        } else {
-          Alert.alert('Text Copied', 'Property details copied to clipboard. Paste in WhatsApp.');
-        }
+        await Linking.openURL(`whatsapp://send?text=${encodedText}`);
         onClose();
       } catch (e) {
-        Alert.alert('Error', 'Could not share. Text has been copied to clipboard.');
+        Alert.alert('Error', 'Could not open WhatsApp. Please try again.');
       }
     } finally {
       setSharing(false);
@@ -334,13 +296,16 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
           <Text style={styles.summaryText}>
             {selectedPhotosCount} photo(s) • {selectedFieldsCount} field(s) selected
           </Text>
+          <Text style={styles.summaryHint}>
+            Image will open share sheet. Add text as caption in WhatsApp.
+          </Text>
         </View>
         
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
           {property.propertyPhotos && property.propertyPhotos.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Photos (tap to select/deselect)</Text>
-              <Text style={styles.sectionSubtitle}>First selected photo will be shared with WhatsApp</Text>
+              <Text style={styles.sectionTitle}>Photos (tap to select)</Text>
+              <Text style={styles.sectionSubtitle}>First selected photo will be shared</Text>
               <ScrollView 
                 horizontal 
                 showsHorizontalScrollIndicator={false}
@@ -369,7 +334,7 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
                   </TouchableOpacity>
                 ))}
               </ScrollView>
-              <Text style={styles.photoHint}>Long press to preview</Text>
+              <Text style={styles.photoHint}>Long press to preview full size</Text>
             </View>
           )}
           
@@ -402,13 +367,13 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
         
         <TouchableOpacity 
           style={[styles.shareButton, sharing && styles.shareButtonDisabled]} 
-          onPress={shareWithPhotos}
+          onPress={shareToWhatsApp}
           disabled={sharing}
         >
           {sharing ? (
             <ActivityIndicator color="#fff" size="small" />
           ) : (
-            <Ionicons name="arrow-forward" size={24} color="#fff" />
+            <Ionicons name="logo-whatsapp" size={28} color="#fff" />
           )}
         </TouchableOpacity>
         
@@ -478,6 +443,11 @@ const styles = StyleSheet.create({
   summaryText: {
     color: '#999',
     fontSize: 14,
+  },
+  summaryHint: {
+    color: '#666',
+    fontSize: 12,
+    marginTop: 4,
   },
   scrollView: {
     flex: 1,
@@ -571,6 +541,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
   },
   shareButtonDisabled: {
     backgroundColor: '#666',
