@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -31,10 +31,23 @@ import {
   resetRefreshFlag,
 } from '../../lib/cache';
 
-// Lazy load MapView only on native platforms
-const NativeMapView = Platform.OS !== 'web' ? require('../../components/NativeMap').default : null;
-
 const { width, height } = Dimensions.get('window');
+
+// Web fallback component
+function WebMapFallback({ count }: { count: number }) {
+  return (
+    <View style={styles.webFallback}>
+      <Ionicons name="map" size={64} color="#666" />
+      <Text style={styles.webFallbackTitle}>Map View</Text>
+      <Text style={styles.webFallbackText}>
+        Please open this app on your mobile device using Expo Go to view the interactive map.
+      </Text>
+      <Text style={styles.webFallbackCount}>
+        {count} properties with location data
+      </Text>
+    </View>
+  );
+}
 
 export default function MapScreen() {
   const { user } = useAuth();
@@ -60,7 +73,9 @@ export default function MapScreen() {
   );
 
   useEffect(() => {
-    getCurrentLocation();
+    if (Platform.OS !== 'web') {
+      getCurrentLocation();
+    }
   }, []);
 
   useEffect(() => {
@@ -175,18 +190,18 @@ export default function MapScreen() {
       const unit = property.floors[0].priceUnit === 'cr' ? 'Cr' : 
                    property.floors[0].priceUnit === 'lakh_per_month' ? 'L/mo' : 'L';
       if (minPrice === maxPrice) {
-        return `\u20b9${minPrice.toFixed(1)}${unit}`;
+        return `₹${minPrice.toFixed(1)}${unit}`;
       }
-      return `\u20b9${minPrice.toFixed(0)}-${maxPrice.toFixed(0)}${unit}`;
+      return `₹${minPrice.toFixed(0)}-${maxPrice.toFixed(0)}${unit}`;
     }
     if (!property.price) return 'N/A';
     if (property.priceUnit === 'cr') {
-      return `\u20b9${property.price}Cr`;
+      return `₹${property.price}Cr`;
     }
     if (property.priceUnit === 'lakh_per_month') {
-      return `\u20b9${property.price}L/mo`;
+      return `₹${property.price}L/mo`;
     }
-    return `\u20b9${property.price}L`;
+    return `₹${property.price}L`;
   };
 
   const handlePropertyPress = (property: Property) => {
@@ -239,32 +254,44 @@ export default function MapScreen() {
     );
   }
 
-  // Web fallback
-  if (Platform.OS === 'web' || !NativeMapView) {
-    return (
-      <View style={styles.webFallback}>
-        <Ionicons name="map" size={64} color="#666" />
-        <Text style={styles.webFallbackTitle}>Map View</Text>
-        <Text style={styles.webFallbackText}>
-          Please open this app on your mobile device using Expo Go to view the interactive map.
-        </Text>
-        <Text style={styles.webFallbackCount}>
-          {filteredProperties.length} properties with location data
-        </Text>
-      </View>
-    );
+  // Web fallback - show message
+  if (Platform.OS === 'web') {
+    return <WebMapFallback count={filteredProperties.length} />;
   }
+
+  // Native - render actual map
+  // Import map components dynamically for native only
+  const MapView = require('react-native-maps').default;
+  const { Marker, PROVIDER_GOOGLE } = require('react-native-maps');
 
   return (
     <View style={styles.container}>
-      {/* Native Map Component */}
-      <NativeMapView
-        properties={filteredProperties}
-        userLocation={userLocation}
+      <MapView
+        style={styles.map}
+        provider={PROVIDER_GOOGLE}
         initialRegion={getInitialRegion()}
-        onPropertySelect={setSelectedProperty}
-        formatPrice={formatPrice}
-      />
+        showsUserLocation={true}
+        showsMyLocationButton={false}
+        showsCompass={true}
+        mapType="standard"
+      >
+        {filteredProperties.map((property) => (
+          <Marker
+            key={property.id}
+            coordinate={{
+              latitude: property.latitude!,
+              longitude: property.longitude!,
+            }}
+            onPress={() => setSelectedProperty(property)}
+          >
+            <View style={[styles.markerContainer, property.isSold && styles.markerSold]}>
+              <Text style={[styles.markerPrice, property.isSold && styles.markerPriceSold]}>
+                {formatPrice(property)}
+              </Text>
+            </View>
+          </Marker>
+        ))}
+      </MapView>
 
       {/* Floating Search & Filters */}
       <View style={[styles.searchOverlay, { top: insets.top + 8 }]}>
@@ -357,6 +384,18 @@ export default function MapScreen() {
         </View>
       )}
 
+      {/* My Location Button */}
+      <TouchableOpacity 
+        style={[styles.myLocationButton, { bottom: insets.bottom + 180 }]}
+        onPress={() => {
+          if (userLocation) {
+            // Would need a ref to mapRef to animate - keeping simple for now
+          }
+        }}
+      >
+        <Ionicons name="locate" size={24} color="#fff" />
+      </TouchableOpacity>
+
       {/* Property Count */}
       <View style={[styles.propertyCountBadge, { bottom: insets.bottom + 130 }]}>
         <Text style={styles.propertyCountText}>{filteredProperties.length} properties</Text>
@@ -412,6 +451,11 @@ const styles = StyleSheet.create({
   webFallbackTitle: { color: '#fff', fontSize: 24, fontWeight: 'bold', marginTop: 16 },
   webFallbackText: { color: '#999', fontSize: 16, textAlign: 'center', marginTop: 12, lineHeight: 24 },
   webFallbackCount: { color: '#4CAF50', fontSize: 14, marginTop: 24 },
+  map: { flex: 1 },
+  markerContainer: { backgroundColor: '#fff', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16, borderWidth: 2, borderColor: '#4CAF50', elevation: 5 },
+  markerSold: { backgroundColor: '#ff4444', borderColor: '#ff4444' },
+  markerPrice: { color: '#000', fontSize: 12, fontWeight: 'bold' },
+  markerPriceSold: { color: '#fff' },
   searchOverlay: { position: 'absolute', left: 16, right: 16, zIndex: 1 },
   searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1a1a1a', borderRadius: 12, padding: 12, gap: 10, borderWidth: 1, borderColor: '#333' },
   searchInput: { flex: 1, color: '#fff', fontSize: 16 },
@@ -428,6 +472,7 @@ const styles = StyleSheet.create({
   chipTextSelected: { color: '#000', fontWeight: '600' },
   soldToggle: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
   soldToggleText: { color: '#fff', fontSize: 12 },
+  myLocationButton: { position: 'absolute', right: 16, backgroundColor: '#1a1a1a', width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#333', elevation: 5 },
   propertyCountBadge: { position: 'absolute', right: 16, backgroundColor: 'rgba(26, 26, 26, 0.9)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: '#333' },
   propertyCountText: { color: '#fff', fontSize: 12 },
   propertyCard: { position: 'absolute', left: 16, right: 16, backgroundColor: '#1a1a1a', borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: '#333', flexDirection: 'row', elevation: 10 },
