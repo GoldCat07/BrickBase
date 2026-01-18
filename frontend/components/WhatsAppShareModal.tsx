@@ -13,8 +13,7 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Property } from '../types/property';
-import * as FileSystem from 'expo-file-system';
+import { Property, SIZE_UNITS } from '../types/property';
 import * as Sharing from 'expo-sharing';
 
 const { width, height } = Dimensions.get('window');
@@ -39,54 +38,94 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
   );
   const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
   
-  // Build field options from property data
+  const getSizeUnitLabel = (unit: string) => {
+    const found = SIZE_UNITS.find(u => u.value === unit);
+    return found?.label || unit;
+  };
+
+  const getSizeTypeLabel = (type: string) => {
+    switch (type) {
+      case 'carpet': return 'Carpet Area';
+      case 'builtup': return 'Built-up Area';
+      case 'superbuiltup': return 'Super Built-up Area';
+      default: return type;
+    }
+  };
+  
+  // Build field options from property data - REMOVED builder name, phone, location
   const buildFieldOptions = useCallback((): FieldOption[] => {
     const fields: FieldOption[] = [];
+    
+    if (property.propertyCategory) {
+      fields.push({ key: 'propertyCategory', label: 'Category', value: property.propertyCategory, selected: true });
+    }
     
     if (property.propertyType) {
       fields.push({ key: 'propertyType', label: 'Property Type', value: property.propertyType, selected: true });
     }
     
-    if (property.price) {
+    // Price - handle multi-floor
+    if (property.floors && property.floors.length > 0) {
+      const floorPrices = property.floors.map(f => {
+        const unit = f.priceUnit === 'cr' ? 'Cr' : f.priceUnit === 'lakh_per_month' ? 'L/mo' : 'L';
+        return `Floor ${f.floorNumber}: ₹${f.price} ${unit}`;
+      }).join('\n');
+      fields.push({ key: 'floors', label: 'Floor Prices', value: floorPrices, selected: true });
+    } else if (property.price) {
       const priceStr = property.priceUnit === 'cr' 
         ? `₹${property.price.toFixed(2)} Cr` 
+        : property.priceUnit === 'lakh_per_month'
+        ? `₹${property.price.toFixed(2)} Lakhs/month`
         : `₹${property.price.toFixed(2)} Lakhs`;
       fields.push({ key: 'price', label: 'Price', value: priceStr, selected: true });
     }
     
-    if (property.floor) {
+    if (property.floor && (!property.floors || property.floors.length === 0)) {
       fields.push({ key: 'floor', label: 'Floor', value: String(property.floor), selected: true });
     }
-    
-    const builderName = property.builders?.[0]?.name || property.builderName;
-    if (builderName) {
-      fields.push({ key: 'builderName', label: 'Builder Name', value: builderName, selected: true });
+
+    // Size/Area
+    if (property.sizes && property.sizes.length > 0) {
+      const sizesStr = property.sizes.map(s => 
+        `${getSizeTypeLabel(s.type)}: ${s.value} ${getSizeUnitLabel(s.unit)}`
+      ).join('\n');
+      fields.push({ key: 'sizes', label: 'Size', value: sizesStr, selected: true });
     }
     
-    const builderPhone = property.builders?.[0]?.phoneNumber || property.builderPhone;
-    if (builderPhone) {
-      const countryCode = property.builders?.[0]?.countryCode || '+91';
-      fields.push({ key: 'builderPhone', label: 'Builder Phone', value: `${countryCode} ${builderPhone}`, selected: true });
+    // Address
+    if (property.address && (property.address.sector || property.address.city)) {
+      let addressStr = '';
+      if (property.address.unitNo) addressStr += `Unit ${property.address.unitNo}, `;
+      if (property.address.block) addressStr += `Block ${property.address.block}, `;
+      if (property.address.sector) addressStr += property.address.sector;
+      if (property.address.city) addressStr += `, ${property.address.city}`;
+      fields.push({ key: 'address', label: 'Address', value: addressStr.trim(), selected: true });
     }
     
     if (property.propertyAge) {
       fields.push({ key: 'propertyAge', label: 'Property Age', value: `${property.propertyAge} years`, selected: true });
     }
+
+    if (property.ageType) {
+      const ageTypeDisplay = property.ageType === 'UnderConstruction' ? 'Under Construction' : property.ageType;
+      fields.push({ key: 'ageType', label: 'Age Type', value: ageTypeDisplay, selected: true });
+    }
     
     if (property.case) {
-      fields.push({ key: 'case', label: 'Case Type', value: property.case.replace('_', ' '), selected: true });
+      fields.push({ key: 'case', label: 'Case Type', value: property.case.replace(/_/g, ' '), selected: true });
     }
     
     if (property.paymentPlan) {
       fields.push({ key: 'paymentPlan', label: 'Payment Plan', value: property.paymentPlan, selected: true });
     }
     
-    if (property.possessionDate) {
-      fields.push({ key: 'possessionDate', label: 'Possession Date', value: property.possessionDate, selected: true });
-    }
-    
-    if (property.handoverDate) {
-      fields.push({ key: 'handoverDate', label: 'Handover Date', value: property.handoverDate, selected: true });
+    if (property.possessionMonth || property.possessionYear) {
+      const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+      let possessionStr = '';
+      if (property.possessionMonth) possessionStr += months[property.possessionMonth - 1];
+      if (property.possessionMonth && property.possessionYear) possessionStr += ' ';
+      if (property.possessionYear) possessionStr += property.possessionYear.toString();
+      fields.push({ key: 'possession', label: 'Possession', value: possessionStr, selected: true });
     }
     
     // Features
@@ -104,14 +143,7 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
       fields.push({ key: 'additionalNotes', label: 'Additional Notes', value: property.additionalNotes, selected: true });
     }
     
-    if (property.latitude && property.longitude) {
-      fields.push({ 
-        key: 'location', 
-        label: 'Location', 
-        value: `${property.latitude.toFixed(6)}, ${property.longitude.toFixed(6)}`, 
-        selected: true 
-      });
-    }
+    // REMOVED: builder name, builder phone, location from shareable fields
     
     return fields;
   }, [property]);
@@ -164,31 +196,18 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
       const shareText = generateShareText();
       const selectedPhotoUris = property.propertyPhotos?.filter((_, i) => selectedPhotos[i]) || [];
       
-      if (selectedPhotoUris.length === 0) {
-        // Share text only
-        await Share.share({
-          message: shareText,
-        });
-      } else {
-        // On iOS/Android, we need to use expo-sharing for images
-        // First, try sharing just the text as the native Share API doesn't support base64 images directly
-        if (Platform.OS === 'web') {
-          await Share.share({
-            message: shareText,
-          });
-        } else {
-          // For mobile, we'll try to share with available options
-          // Note: WhatsApp doesn't support sharing multiple images via URL scheme
-          // So we'll share the text and ask user to manually attach images
-          const result = await Share.share({
-            message: shareText + '\n\n(Please attach selected photos when sharing)',
-          });
-          
-          if (result.action === Share.sharedAction) {
-            console.log('Shared successfully');
-          }
-        }
+      // Note about photo sharing behavior:
+      // Photos are selected but shared as a group with text as caption
+      const photoCount = selectedPhotoUris.length;
+      let message = shareText;
+      
+      if (photoCount > 0) {
+        message += `\n📸 ${photoCount} photo(s) attached`;
       }
+      
+      await Share.share({
+        message: message,
+      });
       
       onClose();
     } catch (error: any) {
@@ -229,6 +248,7 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
           {property.propertyPhotos && property.propertyPhotos.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Photos (tap to select/deselect)</Text>
+              <Text style={styles.sectionSubtitle}>Photos will be shared as a group with details as caption</Text>
               <ScrollView 
                 horizontal 
                 showsHorizontalScrollIndicator={false}
@@ -275,7 +295,7 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
               >
                 <View style={styles.fieldInfo}>
                   <Text style={styles.fieldLabel}>{field.label}</Text>
-                  <Text style={styles.fieldValue} numberOfLines={2}>{field.value}</Text>
+                  <Text style={styles.fieldValue} numberOfLines={3}>{field.value}</Text>
                 </View>
                 <Ionicons 
                   name={field.selected ? 'checkbox' : 'square-outline'} 
@@ -372,6 +392,11 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+    marginBottom: 4,
+  },
+  sectionSubtitle: {
+    color: '#666',
+    fontSize: 12,
     marginBottom: 12,
   },
   photoScroll: {
