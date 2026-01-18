@@ -31,17 +31,8 @@ import {
   resetRefreshFlag,
 } from '../../lib/cache';
 
-// Conditional import for react-native-maps (doesn't work on web)
-let MapView: any = null;
-let Marker: any = null;
-let PROVIDER_GOOGLE: any = null;
-
-if (Platform.OS !== 'web') {
-  const Maps = require('react-native-maps');
-  MapView = Maps.default;
-  Marker = Maps.Marker;
-  PROVIDER_GOOGLE = Maps.PROVIDER_GOOGLE;
-}
+// We'll load react-native-maps dynamically inside the component
+// to avoid bundling issues on web
 
 const { width, height } = Dimensions.get('window');
 
