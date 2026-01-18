@@ -10,12 +10,11 @@ import {
   TouchableOpacity,
   Alert,
   Linking,
-  Modal,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Property } from '../types/property';
+import { Property, FloorEntry, SIZE_UNITS } from '../types/property';
 import api from '../lib/api';
 import WhatsAppShareModal from '../components/WhatsAppShareModal';
 
@@ -23,6 +22,7 @@ const { width } = Dimensions.get('window');
 
 export default function PropertyDetailsScreen() {
   const { propertyId } = useLocalSearchParams();
+  const insets = useSafeAreaInsets();
   const [property, setProperty] = useState<Property | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -50,12 +50,9 @@ export default function PropertyDetailsScreen() {
   const handleDelete = () => {
     Alert.alert(
       'Delete Property',
-      'Are you sure you want to delete this property?',
+      'Are you sure you want to delete this property? This action cannot be undone.',
       [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
+        { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',
           style: 'destructive',
@@ -63,16 +60,39 @@ export default function PropertyDetailsScreen() {
             try {
               await api.delete(`/properties/${propertyId}`);
               Alert.alert('Success', 'Property deleted successfully', [
-                {
-                  text: 'OK',
-                  onPress: () => {
-                    // Navigate back - search screen will refresh via useFocusEffect
-                    router.back();
-                  },
-                },
+                { text: 'OK', onPress: () => router.back() },
               ]);
             } catch (error: any) {
               Alert.alert('Error', error.response?.data?.detail || 'Failed to delete property');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleMarkSold = async (floorNumber?: number) => {
+    const message = floorNumber !== undefined 
+      ? `Mark Floor ${floorNumber} as sold?`
+      : 'Mark this property as sold?';
+    
+    Alert.alert(
+      'Mark as Sold',
+      message,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Mark Sold',
+          onPress: async () => {
+            try {
+              const params = floorNumber !== undefined 
+                ? `?floor_number=${floorNumber}`
+                : '';
+              await api.patch(`/properties/${propertyId}/sold${params}`);
+              Alert.alert('Success', 'Property marked as sold');
+              fetchPropertyDetails(); // Refresh
+            } catch (error: any) {
+              Alert.alert('Error', error.response?.data?.detail || 'Failed to mark as sold');
             }
           },
         },
@@ -112,22 +132,37 @@ export default function PropertyDetailsScreen() {
     if (unit === 'cr') {
       return `₹${price.toFixed(2)} Cr`;
     }
+    if (unit === 'lakh_per_month') {
+      return `₹${price.toFixed(2)} Lakhs/month`;
+    }
     return `₹${price.toFixed(2)} Lakhs`;
   };
 
-  const formatDate = (date?: string) => {
-    if (!date) return 'Not specified';
-    return new Date(date).toLocaleDateString('en-IN', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
+  const formatFloorPrice = (floor: FloorEntry) => {
+    return formatPrice(floor.price, floor.priceUnit);
+  };
+
+  const getSizeUnitLabel = (unit: string) => {
+    const found = SIZE_UNITS.find(u => u.value === unit);
+    return found?.label || unit;
+  };
+
+  const getSizeTypeLabel = (type: string) => {
+    switch (type) {
+      case 'carpet': return 'Carpet Area';
+      case 'builtup': return 'Built-up Area';
+      case 'superbuiltup': return 'Super Built-up Area';
+      default: return type;
+    }
   };
 
   const getInitials = (email?: string) => {
     if (!email) return '?';
     return email.charAt(0).toUpperCase();
   };
+
+  const hasMultipleFloors = property?.floors && property.floors.length > 0 && 
+    (property.propertyType === 'Builder Floor' || property.propertyType === 'Apartment Society');
 
   if (loading) {
     return (
@@ -156,7 +191,10 @@ export default function PropertyDetailsScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
-      <ScrollView style={styles.scrollView}>
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 16) + 100 }}
+      >
         {/* Image Gallery */}
         {property.propertyPhotos && property.propertyPhotos.length > 0 && (
           <View>
@@ -165,19 +203,13 @@ export default function PropertyDetailsScreen() {
               pagingEnabled
               showsHorizontalScrollIndicator={false}
               onScroll={(event) => {
-                const index = Math.round(
-                  event.nativeEvent.contentOffset.x / width
-                );
+                const index = Math.round(event.nativeEvent.contentOffset.x / width);
                 setCurrentImageIndex(index);
               }}
               scrollEventThrottle={16}
             >
               {property.propertyPhotos.map((photo, index) => (
-                <Image
-                  key={index}
-                  source={{ uri: photo }}
-                  style={styles.image}
-                />
+                <Image key={index} source={{ uri: photo }} style={styles.image} />
               ))}
             </ScrollView>
             {property.propertyPhotos.length > 1 && (
@@ -193,27 +225,36 @@ export default function PropertyDetailsScreen() {
                 ))}
               </View>
             )}
-            {/* Share button on image */}
             <TouchableOpacity 
               style={styles.shareImageButton} 
               onPress={() => setShowShareModal(true)}
             >
               <Ionicons name="share-social-outline" size={22} color="#fff" />
             </TouchableOpacity>
+            {property.isSold && (
+              <View style={styles.soldOverlay}>
+                <Text style={styles.soldOverlayText}>SOLD</Text>
+              </View>
+            )}
           </View>
         )}
 
         {/* Property Details */}
         <View style={styles.content}>
-          {/* Header with Actions */}
+          {/* Header with Actions - NO DELETE ICON */}
           <View style={styles.header}>
             <View style={styles.headerLeft}>
-              <Text style={styles.propertyType}>
-                {property.propertyType || 'Property'}
-              </Text>
-              <Text style={styles.price}>{formatPrice(property.price, property.priceUnit)}</Text>
+              <View style={styles.categoryBadge}>
+                <Text style={styles.categoryText}>{property.propertyCategory || 'Property'}</Text>
+              </View>
+              <Text style={styles.propertyType}>{property.propertyType || 'Property'}</Text>
               
-              {/* Posted By - Below Price */}
+              {/* Show single price only if not multi-floor */}
+              {!hasMultipleFloors && (
+                <Text style={styles.price}>{formatPrice(property.price, property.priceUnit)}</Text>
+              )}
+              
+              {/* Posted By */}
               {property.userEmail && (
                 <View style={styles.postedBySection}>
                   <Text style={styles.postedByLabel}>Posted by</Text>
@@ -233,11 +274,36 @@ export default function PropertyDetailsScreen() {
               <TouchableOpacity style={styles.actionButton} onPress={handleEdit}>
                 <Ionicons name="create-outline" size={22} color="#fff" />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.actionButton} onPress={handleDelete}>
-                <Ionicons name="trash-outline" size={22} color="#ff4444" />
-              </TouchableOpacity>
+              {/* DELETE ICON REMOVED FROM HERE */}
             </View>
           </View>
+
+          {/* Floor Prices (for multi-floor properties) */}
+          {hasMultipleFloors && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Floors & Pricing</Text>
+              {property.floors!.map((floor, index) => (
+                <View key={index} style={styles.floorItem}>
+                  <View style={styles.floorInfo}>
+                    <Text style={styles.floorNumber}>Floor {floor.floorNumber}</Text>
+                    <Text style={styles.floorPrice}>{formatFloorPrice(floor)}</Text>
+                  </View>
+                  {floor.isSold ? (
+                    <View style={styles.soldBadge}>
+                      <Text style={styles.soldBadgeText}>SOLD</Text>
+                    </View>
+                  ) : (
+                    <TouchableOpacity 
+                      style={styles.markSoldButton}
+                      onPress={() => handleMarkSold(floor.floorNumber)}
+                    >
+                      <Text style={styles.markSoldText}>Mark Sold</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              ))}
+            </View>
+          )}
 
           {/* Call Builder Section */}
           {hasBuilder && (
@@ -255,6 +321,46 @@ export default function PropertyDetailsScreen() {
                   <Ionicons name="logo-whatsapp" size={20} color="#fff" />
                   <Text style={styles.callButtonText}>WhatsApp</Text>
                 </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {/* Address */}
+          {property.address && (property.address.unitNo || property.address.block || property.address.sector || property.address.city) && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Address</Text>
+              <View style={styles.addressCard}>
+                {(property.address.unitNo || property.address.block) && (
+                  <Text style={styles.addressLine}>
+                    {property.address.unitNo && `Unit ${property.address.unitNo}`}
+                    {property.address.unitNo && property.address.block && ', '}
+                    {property.address.block && `Block ${property.address.block}`}
+                  </Text>
+                )}
+                {(property.address.sector || property.address.city) && (
+                  <Text style={styles.addressLine}>
+                    {property.address.sector}
+                    {property.address.sector && property.address.city && ', '}
+                    {property.address.city}
+                  </Text>
+                )}
+              </View>
+            </View>
+          )}
+
+          {/* Size/Area */}
+          {property.sizes && property.sizes.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Size / Area</Text>
+              <View style={styles.sizesGrid}>
+                {property.sizes.map((size, index) => (
+                  <View key={index} style={styles.sizeItem}>
+                    <Text style={styles.sizeLabel}>{getSizeTypeLabel(size.type)}</Text>
+                    <Text style={styles.sizeValue}>
+                      {size.value} {getSizeUnitLabel(size.unit)}
+                    </Text>
+                  </View>
+                ))}
               </View>
             </View>
           )}
@@ -278,10 +384,12 @@ export default function PropertyDetailsScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Details</Text>
             <View style={styles.detailsGrid}>
-              {property.floor && (
+              {property.ageType && (
                 <View style={styles.detailItem}>
-                  <Text style={styles.detailLabel}>Floor</Text>
-                  <Text style={styles.detailValue}>{property.floor}</Text>
+                  <Text style={styles.detailLabel}>Age Type</Text>
+                  <Text style={styles.detailValue}>
+                    {property.ageType === 'UnderConstruction' ? 'Under Construction' : property.ageType}
+                  </Text>
                 </View>
               )}
               {property.propertyAge && (
@@ -293,9 +401,13 @@ export default function PropertyDetailsScreen() {
               {property.case && (
                 <View style={styles.detailItem}>
                   <Text style={styles.detailLabel}>Case Type</Text>
-                  <Text style={styles.detailValue}>
-                    {property.case.replace('_', ' ')}
-                  </Text>
+                  <Text style={styles.detailValue}>{property.case.replace(/_/g, ' ')}</Text>
+                </View>
+              )}
+              {property.floor && !hasMultipleFloors && (
+                <View style={styles.detailItem}>
+                  <Text style={styles.detailLabel}>Floor</Text>
+                  <Text style={styles.detailValue}>{property.floor}</Text>
                 </View>
               )}
             </View>
@@ -311,67 +423,37 @@ export default function PropertyDetailsScreen() {
             </View>
           )}
 
-          {/* Legacy Payment Details */}
-          {(property.black || property.white) && !property.paymentPlan && (
+          {/* Possession */}
+          {(property.possessionMonth || property.possessionYear) && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Payment Details</Text>
-              <View style={styles.paymentGrid}>
-                {property.black && (
-                  <View style={styles.paymentItem}>
-                    <Text style={styles.paymentLabel}>Black Amount</Text>
-                    <Text style={styles.paymentValue}>
-                      {formatPrice(property.black)}
-                    </Text>
-                    {property.blackPercentage && (
-                      <Text style={styles.paymentPercentage}>
-                        {property.blackPercentage.toFixed(1)}%
-                      </Text>
-                    )}
-                  </View>
-                )}
-                {property.white && (
-                  <View style={styles.paymentItem}>
-                    <Text style={styles.paymentLabel}>White Amount</Text>
-                    <Text style={styles.paymentValue}>
-                      {formatPrice(property.white)}
-                    </Text>
-                    {property.whitePercentage && (
-                      <Text style={styles.paymentPercentage}>
-                        {property.whitePercentage.toFixed(1)}%
-                      </Text>
-                    )}
-                  </View>
-                )}
+              <Text style={styles.sectionTitle}>Possession</Text>
+              <View style={styles.dateItem}>
+                <Ionicons name="calendar-outline" size={20} color="#999" />
+                <Text style={styles.dateValue}>
+                  {property.possessionMonth && ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][property.possessionMonth - 1]}
+                  {property.possessionMonth && property.possessionYear && ' '}
+                  {property.possessionYear}
+                </Text>
               </View>
             </View>
           )}
 
-          {/* Dates */}
-          {(property.possessionDate || property.handoverDate) && (
+          {/* Important Files */}
+          {property.importantFiles && property.importantFiles.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Important Dates</Text>
-              {property.possessionDate && (
-                <View style={styles.dateItem}>
-                  <Ionicons name="calendar-outline" size={20} color="#999" />
-                  <View>
-                    <Text style={styles.dateLabel}>Possession Date</Text>
-                    <Text style={styles.dateValue}>
-                      {formatDate(property.possessionDate)}
-                    </Text>
+              <Text style={styles.sectionTitle}>Important Files</Text>
+              <View style={styles.filesList}>
+                {property.importantFiles.map((file, index) => (
+                  <View key={index} style={styles.fileItem}>
+                    <Ionicons 
+                      name={file.mimeType?.includes('pdf') ? 'document-text' : 'image'} 
+                      size={20} 
+                      color="#4CAF50" 
+                    />
+                    <Text style={styles.fileName}>{file.name}</Text>
                   </View>
-                </View>
-              )}
-              {property.handoverDate && (
-                <View style={styles.dateItem}>
-                  <Ionicons name="calendar-outline" size={20} color="#999" />
-                  <View>
-                    <Text style={styles.dateLabel}>Handover Date</Text>
-                    <Text style={styles.dateValue}>
-                      {formatDate(property.handoverDate)}
-                    </Text>
-                  </View>
-                </View>
-              )}
+                ))}
+              </View>
             </View>
           )}
 
@@ -397,6 +479,26 @@ export default function PropertyDetailsScreen() {
               </View>
             </View>
           )}
+
+          {/* Action Buttons at Bottom */}
+          <View style={styles.bottomActions}>
+            {!property.isSold && !hasMultipleFloors && (
+              <TouchableOpacity 
+                style={styles.soldActionButton}
+                onPress={() => handleMarkSold()}
+              >
+                <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
+                <Text style={styles.soldActionText}>Property Sold</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity 
+              style={styles.deleteActionButton}
+              onPress={handleDelete}
+            >
+              <Ionicons name="trash-outline" size={20} color="#fff" />
+              <Text style={styles.deleteActionText}>Delete Property</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </ScrollView>
 
@@ -459,6 +561,20 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 10,
   },
+  soldOverlay: {
+    position: 'absolute',
+    top: 16,
+    left: 16,
+    backgroundColor: '#ff4444',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  soldOverlayText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
   content: {
     padding: 16,
   },
@@ -470,6 +586,19 @@ const styles = StyleSheet.create({
   },
   headerLeft: {
     flex: 1,
+  },
+  categoryBadge: {
+    backgroundColor: '#333',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  categoryText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
   },
   propertyType: {
     color: '#999',
@@ -520,6 +649,52 @@ const styles = StyleSheet.create({
     backgroundColor: '#1a1a1a',
     borderRadius: 8,
   },
+  // Floor items
+  floorItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#1a1a1a',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 8,
+  },
+  floorInfo: {
+    flex: 1,
+  },
+  floorNumber: {
+    color: '#999',
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  floorPrice: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  soldBadge: {
+    backgroundColor: '#ff4444',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  soldBadgeText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 12,
+  },
+  markSoldButton: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  markSoldText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 12,
+  },
+  // Builder section
   callBuilderSection: {
     backgroundColor: '#1a1a1a',
     borderRadius: 12,
@@ -570,6 +745,38 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 16,
   },
+  // Address
+  addressCard: {
+    backgroundColor: '#1a1a1a',
+    borderRadius: 12,
+    padding: 16,
+  },
+  addressLine: {
+    color: '#fff',
+    fontSize: 16,
+    marginBottom: 4,
+  },
+  // Sizes
+  sizesGrid: {
+    gap: 12,
+  },
+  sizeItem: {
+    backgroundColor: '#1a1a1a',
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  sizeLabel: {
+    color: '#999',
+    fontSize: 14,
+  },
+  sizeValue: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
   featuresGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -618,29 +825,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 22,
   },
-  paymentGrid: {
-    gap: 12,
-  },
-  paymentItem: {
-    backgroundColor: '#1a1a1a',
-    padding: 16,
-    borderRadius: 12,
-  },
-  paymentLabel: {
-    color: '#999',
-    fontSize: 14,
-    marginBottom: 4,
-  },
-  paymentValue: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  paymentPercentage: {
-    color: '#4CAF50',
-    fontSize: 14,
-  },
   dateItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -648,16 +832,27 @@ const styles = StyleSheet.create({
     backgroundColor: '#1a1a1a',
     padding: 16,
     borderRadius: 12,
-    marginBottom: 12,
-  },
-  dateLabel: {
-    color: '#999',
-    fontSize: 14,
   },
   dateValue: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  filesList: {
+    gap: 8,
+  },
+  fileItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1a1a1a',
+    borderRadius: 8,
+    padding: 12,
+    gap: 12,
+  },
+  fileName: {
+    flex: 1,
+    color: '#fff',
+    fontSize: 14,
   },
   notesCard: {
     backgroundColor: '#1a1a1a',
@@ -681,5 +876,44 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontFamily: 'monospace',
+  },
+  // Bottom action buttons
+  bottomActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 24,
+    paddingTop: 24,
+    borderTopWidth: 1,
+    borderTopColor: '#333',
+  },
+  soldActionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#4CAF50',
+    borderRadius: 12,
+    padding: 16,
+  },
+  soldActionText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  deleteActionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#ff4444',
+    borderRadius: 12,
+    padding: 16,
+  },
+  deleteActionText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
