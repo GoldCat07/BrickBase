@@ -95,21 +95,17 @@ CREATE TABLE properties (
 ## 🟡 MEDIUM PRIORITY - Feature Enhancements
 
 ### 4. Google Maps Integration (Mobile)
-**Current State:** Web preview uses list view, native apps will need react-native-maps installed
-**Status:** 🟡 Partially Implemented - Web fallback working
+**Current State:** react-native-maps installed, native maps for Expo Go
+**Status:** ✅ Implemented for native (shows list on web)
 
 **Google Maps API Key:** `AIzaSyC46BsGdP0YtuAuxdlgP8rTni1vwmy4oDA`
 
 **What's working:**
-- Web: List view with property coordinates and filters
-- API key configured in app.json
-
-**For Expo Go / Native builds:**
-- [ ] Reinstall react-native-maps for native builds: `yarn add react-native-maps`
-- [ ] Update map.tsx to use native maps (code available in git history)
-- [ ] Property markers with price labels will work on native
-- [ ] Property card popup on marker tap will work on native
-- [ ] User location tracking enabled
+- Native: Full Google Maps with property markers
+- Property card popup like Airbnb/MMT on marker tap
+- User location tracking
+- Filters overlay on map
+- Web: List fallback with coordinates
 
 ### 5. Image Sharing Enhancement
 **Current State:** Share text with photo count notation
