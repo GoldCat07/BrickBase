@@ -12,7 +12,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   Dimensions,
-  Modal,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
@@ -23,8 +22,6 @@ import { useAuth } from '../../contexts/AuthContext';
 import {
   PropertyCategory,
   PropertyType,
-  ResidentialPropertyType,
-  CommercialPropertyType,
   CaseType,
   AgeType,
   PriceUnit,
@@ -47,13 +44,6 @@ import api from '../../lib/api';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const MAX_CONTENT_WIDTH = 500;
-const CONTENT_WIDTH = Math.min(SCREEN_WIDTH - 32, MAX_CONTENT_WIDTH);
-
-const PRICE_UNITS: { label: string; value: PriceUnit }[] = [
-  { label: 'Cr', value: 'cr' },
-  { label: 'Lakh', value: 'lakh' },
-  { label: 'Lakh/month', value: 'lakh_per_month' },
-];
 
 const COUNTRY_CODES = ['+91', '+1', '+44', '+971'];
 
@@ -84,22 +74,20 @@ export default function AddPropertyScreen() {
   const [loading, setLoading] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   
-  // Form state
+  // Form state - in order
   const [propertyCategory, setPropertyCategory] = useState<PropertyCategory | ''>('');
   const [propertyType, setPropertyType] = useState<PropertyType | ''>('');
-  const [caseType, setCaseType] = useState<CaseType | ''>('');
-  const [ageType, setAgeType] = useState<AgeType | ''>('');
   const [photos, setPhotos] = useState<PhotoData[]>([]);
   const [photosWithoutLocation, setPhotosWithoutLocation] = useState<number>(0);
+  const [builders, setBuilders] = useState<BuilderInfo[]>([{ name: '', phoneNumber: '', countryCode: '+91' }]);
+  const [caseType, setCaseType] = useState<CaseType | ''>('');
   
   // Floor entries (for Builder Floor and Apartment Society)
-  const [floors, setFloors] = useState<FloorEntry[]>([{ floorNumber: 0, price: 0, priceUnit: 'lakh' }]);
+  const [floors, setFloors] = useState<FloorEntry[]>([{ floorNumber: 0, price: 0, priceUnit: 'cr' }]);
   
   // Single price for other property types
   const [price, setPrice] = useState('');
-  const [priceUnit, setPriceUnit] = useState<PriceUnit>('lakh');
-  
-  const [builders, setBuilders] = useState<BuilderInfo[]>([{ name: '', phoneNumber: '', countryCode: '+91' }]);
+  const [priceUnit, setPriceUnit] = useState<PriceUnit>('cr');
   
   // Address
   const [address, setAddress] = useState<AddressInfo>({
@@ -112,11 +100,15 @@ export default function AddPropertyScreen() {
   // Size/Area
   const [sizes, setSizes] = useState<SizeEntry[]>([]);
   
-  // Possession Month/Year
+  // Age Type
+  const [ageType, setAgeType] = useState<AgeType | ''>('');
+  const [propertyAge, setPropertyAge] = useState('');
+  
+  // Possession Time
   const [possessionMonth, setPossessionMonth] = useState<number | null>(null);
   const [possessionYear, setPossessionYear] = useState<number | null>(null);
-  const [showMonthPicker, setShowMonthPicker] = useState(false);
-  const [showYearPicker, setShowYearPicker] = useState(false);
+  const [showMonthDropdown, setShowMonthDropdown] = useState(false);
+  const [showYearDropdown, setShowYearDropdown] = useState(false);
   
   // Important Files
   const [importantFiles, setImportantFiles] = useState<ImportantFile[]>([]);
@@ -128,7 +120,6 @@ export default function AddPropertyScreen() {
   const [poolProperty, setPoolProperty] = useState(false);
   const [parkProperty, setParkProperty] = useState(false);
   const [gatedProperty, setGatedProperty] = useState(false);
-  const [propertyAge, setPropertyAge] = useState('');
   
   // Dropdowns
   const [showPriceDropdown, setShowPriceDropdown] = useState(false);
@@ -152,12 +143,13 @@ export default function AddPropertyScreen() {
   const needsMultipleFloors = propertyCategory === 'Residential' && 
     (propertyType === 'Builder Floor' || propertyType === 'Apartment Society');
 
-  // Get price unit based on case type
-  const getAvailablePriceUnits = () => {
+  // Get available price units based on case type
+  const getAvailablePriceUnits = (): { label: string; value: PriceUnit }[] => {
     if (caseType === 'RENTAL') {
-      return [{ label: 'Lakh/month', value: 'lakh_per_month' as PriceUnit }];
+      return [{ label: 'Lakh/month', value: 'lakh_per_month' }];
     }
-    return PRICE_UNITS.filter(u => u.value !== 'lakh_per_month');
+    // Only Cr for non-rental
+    return [{ label: 'Cr', value: 'cr' }];
   };
 
   // Reset form when screen is focused (not in edit mode)
@@ -169,15 +161,14 @@ export default function AddPropertyScreen() {
     }, [editPropertyId])
   );
 
-  // Update price unit when case type changes to RENTAL
+  // Update price unit when case type changes
   useEffect(() => {
     if (caseType === 'RENTAL') {
       setPriceUnit('lakh_per_month');
-      // Update floors price unit too
       setFloors(prev => prev.map(f => ({ ...f, priceUnit: 'lakh_per_month' })));
-    } else if (priceUnit === 'lakh_per_month') {
-      setPriceUnit('lakh');
-      setFloors(prev => prev.map(f => ({ ...f, priceUnit: 'lakh' })));
+    } else {
+      setPriceUnit('cr');
+      setFloors(prev => prev.map(f => ({ ...f, priceUnit: 'cr' })));
     }
   }, [caseType]);
 
@@ -206,12 +197,12 @@ export default function AddPropertyScreen() {
         setFloors([{ 
           floorNumber: property.floor, 
           price: property.price || 0, 
-          priceUnit: property.priceUnit || 'lakh' 
+          priceUnit: property.priceUnit || 'cr' 
         }]);
       }
       
       setPrice(property.price?.toString() || '');
-      setPriceUnit(property.priceUnit || 'lakh');
+      setPriceUnit(property.priceUnit || 'cr');
       
       if (property.builders && property.builders.length > 0) {
         setBuilders(property.builders);
@@ -271,9 +262,9 @@ export default function AddPropertyScreen() {
     setAgeType('');
     setPhotos([]);
     setPhotosWithoutLocation(0);
-    setFloors([{ floorNumber: 0, price: 0, priceUnit: 'lakh' }]);
+    setFloors([{ floorNumber: 0, price: 0, priceUnit: 'cr' }]);
     setPrice('');
-    setPriceUnit('lakh');
+    setPriceUnit('cr');
     setBuilders([{ name: '', phoneNumber: '', countryCode: '+91' }]);
     setAddress({ unitNo: '', block: '', sector: '', city: '' });
     setSizes([]);
@@ -500,7 +491,7 @@ export default function AddPropertyScreen() {
     setFloors([...floors, { 
       floorNumber: (lastFloor?.floorNumber || 0) + 1, 
       price: 0, 
-      priceUnit: caseType === 'RENTAL' ? 'lakh_per_month' : 'lakh' 
+      priceUnit: caseType === 'RENTAL' ? 'lakh_per_month' : 'cr' 
     }]);
   };
 
@@ -573,9 +564,6 @@ export default function AddPropertyScreen() {
       
       // Prepare price data
       let actualPrice = price ? parseFloat(price) : null;
-      if (actualPrice && priceUnit === 'cr') {
-        actualPrice = actualPrice * 100;
-      }
       
       // Prepare floors data for multi-floor properties
       const floorsData = needsMultipleFloors ? floors.map(f => ({
@@ -700,7 +688,7 @@ export default function AddPropertyScreen() {
               </View>
             )}
 
-            {/* Property Category */}
+            {/* 1. Property Category */}
             <View style={styles.section}>
               <Text style={styles.label}>Property Category *</Text>
               <View style={styles.chipContainer}>
@@ -713,7 +701,7 @@ export default function AddPropertyScreen() {
                     ]}
                     onPress={() => {
                       setPropertyCategory(cat);
-                      setPropertyType(''); // Reset property type when category changes
+                      setPropertyType('');
                     }}
                   >
                     <Text
@@ -732,7 +720,7 @@ export default function AddPropertyScreen() {
               )}
             </View>
 
-            {/* Property Type */}
+            {/* 2. Property Type */}
             {propertyCategory && (
               <View style={styles.section}>
                 <Text style={styles.label}>Property Type *</Text>
@@ -763,99 +751,7 @@ export default function AddPropertyScreen() {
               </View>
             )}
 
-            {/* Case Type */}
-            <View style={styles.section}>
-              <Text style={styles.label}>Case Type</Text>
-              <View style={styles.chipContainer}>
-                {CASE_TYPES.map((type) => (
-                  <TouchableOpacity
-                    key={type}
-                    style={[
-                      styles.chip,
-                      caseType === type && styles.chipSelected,
-                    ]}
-                    onPress={() => setCaseType(type)}
-                  >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        caseType === type && styles.chipTextSelected,
-                      ]}
-                    >
-                      {type.replace(/_/g, ' ')}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            {/* Age Type */}
-            <View style={styles.section}>
-              <Text style={styles.label}>Age Type</Text>
-              <View style={styles.chipContainer}>
-                {AGE_TYPES.map((type) => (
-                  <TouchableOpacity
-                    key={type}
-                    style={[
-                      styles.chip,
-                      ageType === type && styles.chipSelected,
-                    ]}
-                    onPress={() => setAgeType(type)}
-                  >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        ageType === type && styles.chipTextSelected,
-                      ]}
-                    >
-                      {type === 'UnderConstruction' ? 'Under Construction' : type}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            {/* Property Age (only shown when Resale is selected) */}
-            {ageType === 'Resale' && (
-              <View style={styles.section}>
-                <Text style={styles.label}>Property Age (years)</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter property age"
-                  placeholderTextColor="#666"
-                  value={propertyAge}
-                  onChangeText={setPropertyAge}
-                  keyboardType="numeric"
-                />
-              </View>
-            )}
-
-            {/* Possession Month/Year */}
-            <View style={styles.section}>
-              <Text style={styles.label}>Possession Month</Text>
-              <View style={styles.rowContainer}>
-                <TouchableOpacity 
-                  style={[styles.dropdownButton, { flex: 1.5 }]}
-                  onPress={() => setShowMonthPicker(true)}
-                >
-                  <Text style={styles.dropdownButtonText}>
-                    {possessionMonth !== null ? MONTHS[possessionMonth - 1] : 'Select Month'}
-                  </Text>
-                  <Ionicons name="chevron-down" size={20} color="#fff" />
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={[styles.dropdownButton, { flex: 1 }]}
-                  onPress={() => setShowYearPicker(true)}
-                >
-                  <Text style={styles.dropdownButtonText}>
-                    {possessionYear !== null ? possessionYear.toString() : 'Year'}
-                  </Text>
-                  <Ionicons name="chevron-down" size={20} color="#fff" />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Photos */}
+            {/* 3. Property Photos */}
             <View style={styles.section}>
               <Text style={styles.label}>Property Photos *</Text>
               <View style={styles.photoButtons}>
@@ -896,7 +792,179 @@ export default function AddPropertyScreen() {
               {errors.photos && <Text style={styles.errorText}>{errors.photos}</Text>}
             </View>
 
-            {/* Size/Area Section */}
+            {/* 4. Builder Details */}
+            <View style={styles.section}>
+              <Text style={styles.label}>Builder Details</Text>
+              {builders.map((builder, index) => (
+                <View key={index} style={styles.builderContainer}>
+                  <View style={styles.builderRow}>
+                    <TextInput
+                      style={[styles.input, styles.builderNameInput]}
+                      placeholder="Builder name"
+                      placeholderTextColor="#666"
+                      value={builder.name}
+                      onChangeText={(text) => updateBuilder(index, 'name', text)}
+                    />
+                    <View style={styles.phoneContainer}>
+                      <TouchableOpacity 
+                        style={styles.countryCodeDropdown}
+                        onPress={() => {
+                          const currentIndex = COUNTRY_CODES.indexOf(builder.countryCode || '+91');
+                          const nextIndex = (currentIndex + 1) % COUNTRY_CODES.length;
+                          updateBuilder(index, 'countryCode', COUNTRY_CODES[nextIndex]);
+                        }}
+                      >
+                        <Text style={styles.countryCodeText}>{builder.countryCode || '+91'}</Text>
+                      </TouchableOpacity>
+                      <TextInput
+                        style={[styles.input, styles.builderPhoneInput]}
+                        placeholder="Phone"
+                        placeholderTextColor="#666"
+                        value={builder.phoneNumber}
+                        onChangeText={(text) => updateBuilder(index, 'phoneNumber', text)}
+                        keyboardType="phone-pad"
+                      />
+                    </View>
+                  </View>
+                  {builders.length > 1 && (
+                    <TouchableOpacity
+                      style={styles.removeBuilderButton}
+                      onPress={() => removeBuilder(index)}
+                    >
+                      <Ionicons name="close-circle" size={20} color="#ff4444" />
+                    </TouchableOpacity>
+                  )}
+                  {errors[`builderPhone_${index}`] && (
+                    <Text style={styles.errorText}>{errors[`builderPhone_${index}`]}</Text>
+                  )}
+                </View>
+              ))}
+              <TouchableOpacity style={styles.addBuilderButton} onPress={addBuilder}>
+                <Ionicons name="add-circle-outline" size={20} color="#4CAF50" />
+                <Text style={styles.addBuilderText}>Add Builder</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* 5. Case Type */}
+            <View style={styles.section}>
+              <Text style={styles.label}>Case Type</Text>
+              <View style={styles.chipContainer}>
+                {CASE_TYPES.map((type) => (
+                  <TouchableOpacity
+                    key={type}
+                    style={[
+                      styles.chip,
+                      caseType === type && styles.chipSelected,
+                    ]}
+                    onPress={() => setCaseType(type)}
+                  >
+                    <Text
+                      style={[
+                        styles.chipText,
+                        caseType === type && styles.chipTextSelected,
+                      ]}
+                    >
+                      {type.replace(/_/g, ' ')}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* 6. Price */}
+            {needsMultipleFloors ? (
+              <View style={styles.section}>
+                <Text style={styles.label}>Floor & Price</Text>
+                {floors.map((floor, index) => (
+                  <View key={index} style={styles.floorEntry}>
+                    <View style={styles.floorRow}>
+                      <View style={styles.floorNumberContainer}>
+                        <Text style={styles.floorLabel}>Floor</Text>
+                        <TextInput
+                          style={[styles.input, styles.floorInput]}
+                          placeholder="0"
+                          placeholderTextColor="#666"
+                          value={floor.floorNumber > 0 ? floor.floorNumber.toString() : ''}
+                          onChangeText={(text) => updateFloor(index, 'floorNumber', parseInt(text) || 0)}
+                          keyboardType="numeric"
+                        />
+                      </View>
+                      <View style={styles.priceContainer}>
+                        <Text style={styles.floorLabel}>Price ({getPriceUnitLabel(floor.priceUnit)})</Text>
+                        <TextInput
+                          style={[styles.input, styles.floorPriceInput]}
+                          placeholder="0.00"
+                          placeholderTextColor="#666"
+                          value={floor.price > 0 ? floor.price.toString() : ''}
+                          onChangeText={(text) => updateFloor(index, 'price', parseFloat(text) || 0)}
+                          keyboardType="decimal-pad"
+                        />
+                      </View>
+                      {floors.length > 1 && (
+                        <TouchableOpacity onPress={() => removeFloor(index)} style={styles.removeFloorButton}>
+                          <Ionicons name="close-circle" size={22} color="#ff4444" />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </View>
+                ))}
+                <TouchableOpacity style={styles.addFloorButton} onPress={addFloor}>
+                  <Ionicons name="add-circle-outline" size={20} color="#4CAF50" />
+                  <Text style={styles.addFloorText}>Add Floor</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.section}>
+                <Text style={styles.label}>Price ({getPriceUnitLabel(priceUnit)})</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="00.00"
+                  placeholderTextColor="#666"
+                  value={price}
+                  onChangeText={setPrice}
+                  keyboardType="decimal-pad"
+                />
+              </View>
+            )}
+
+            {/* 7. Address */}
+            <View style={styles.section}>
+              <Text style={styles.label}>Address</Text>
+              <View style={styles.addressRow}>
+                <TextInput
+                  style={[styles.input, styles.addressInputSmall]}
+                  placeholder="Unit No"
+                  placeholderTextColor="#666"
+                  value={address.unitNo}
+                  onChangeText={(text) => setAddress({ ...address, unitNo: text })}
+                />
+                <TextInput
+                  style={[styles.input, styles.addressInputSmall]}
+                  placeholder="Block (if any)"
+                  placeholderTextColor="#666"
+                  value={address.block}
+                  onChangeText={(text) => setAddress({ ...address, block: text })}
+                />
+              </View>
+              <View style={styles.addressRow}>
+                <TextInput
+                  style={[styles.input, styles.addressInputSmall]}
+                  placeholder="Sector/Area"
+                  placeholderTextColor="#666"
+                  value={address.sector}
+                  onChangeText={(text) => setAddress({ ...address, sector: text })}
+                />
+                <TextInput
+                  style={[styles.input, styles.addressInputSmall]}
+                  placeholder="City"
+                  placeholderTextColor="#666"
+                  value={address.city}
+                  onChangeText={(text) => setAddress({ ...address, city: text })}
+                />
+              </View>
+            </View>
+
+            {/* 8. Size/Area */}
             <View style={styles.section}>
               <Text style={styles.label}>Size / Area</Text>
               <Text style={styles.subLabel}>Add property dimensions</Text>
@@ -982,216 +1050,131 @@ export default function AddPropertyScreen() {
               </View>
             </View>
 
-            {/* Floor and Price - Multiple floors for Builder Floor/Apartment */}
-            {needsMultipleFloors ? (
-              <View style={styles.section}>
-                <Text style={styles.label}>Floor & Price</Text>
-                {floors.map((floor, index) => (
-                  <View key={index} style={styles.floorEntry}>
-                    <View style={styles.floorRow}>
-                      <View style={styles.floorNumberContainer}>
-                        <Text style={styles.floorLabel}>Floor</Text>
-                        <TextInput
-                          style={[styles.input, styles.floorInput]}
-                          placeholder="0"
-                          placeholderTextColor="#666"
-                          value={floor.floorNumber > 0 ? floor.floorNumber.toString() : ''}
-                          onChangeText={(text) => updateFloor(index, 'floorNumber', parseInt(text) || 0)}
-                          keyboardType="numeric"
-                        />
-                      </View>
-                      <View style={styles.priceContainer}>
-                        <Text style={styles.floorLabel}>Price</Text>
-                        <View style={styles.priceInputRow}>
-                          <TextInput
-                            style={[styles.input, styles.floorPriceInput]}
-                            placeholder="0.00"
-                            placeholderTextColor="#666"
-                            value={floor.price > 0 ? floor.price.toString() : ''}
-                            onChangeText={(text) => updateFloor(index, 'price', parseFloat(text) || 0)}
-                            keyboardType="decimal-pad"
-                          />
-                          <TouchableOpacity 
-                            style={styles.floorUnitDropdown}
-                            onPress={() => setActiveFloorDropdown(activeFloorDropdown === index ? null : index)}
-                          >
-                            <Text style={styles.unitText}>{getPriceUnitLabel(floor.priceUnit)}</Text>
-                            <Ionicons name="chevron-down" size={16} color="#fff" />
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                      {floors.length > 1 && (
-                        <TouchableOpacity onPress={() => removeFloor(index)} style={styles.removeFloorButton}>
-                          <Ionicons name="close-circle" size={22} color="#ff4444" />
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                    {activeFloorDropdown === index && (
-                      <View style={styles.dropdownList}>
-                        {getAvailablePriceUnits().map((unit) => (
+            {/* 9. Age Type */}
+            <View style={styles.section}>
+              <Text style={styles.label}>Age Type</Text>
+              <View style={styles.chipContainer}>
+                {AGE_TYPES.map((type) => (
+                  <TouchableOpacity
+                    key={type}
+                    style={[
+                      styles.chip,
+                      ageType === type && styles.chipSelected,
+                    ]}
+                    onPress={() => setAgeType(type)}
+                  >
+                    <Text
+                      style={[
+                        styles.chipText,
+                        ageType === type && styles.chipTextSelected,
+                      ]}
+                    >
+                      {type === 'UnderConstruction' ? 'Under Construction' : type}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              
+              {/* Property Age (only shown when Resale is selected) */}
+              {ageType === 'Resale' && (
+                <View style={styles.subSection}>
+                  <Text style={styles.subLabel}>Property Age (years)</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter property age"
+                    placeholderTextColor="#666"
+                    value={propertyAge}
+                    onChangeText={setPropertyAge}
+                    keyboardType="numeric"
+                  />
+                </View>
+              )}
+            </View>
+
+            {/* 10. Possession Time */}
+            <View style={styles.section}>
+              <Text style={styles.label}>Possession Time</Text>
+              <View style={styles.rowContainer}>
+                <View style={styles.dropdownFieldContainer}>
+                  <TouchableOpacity 
+                    style={styles.dropdownField}
+                    onPress={() => {
+                      setShowMonthDropdown(!showMonthDropdown);
+                      setShowYearDropdown(false);
+                    }}
+                  >
+                    <Text style={styles.dropdownFieldText}>
+                      {possessionMonth !== null ? MONTHS[possessionMonth - 1] : 'Select Month'}
+                    </Text>
+                    <Ionicons name="chevron-down" size={20} color="#fff" />
+                  </TouchableOpacity>
+                  {showMonthDropdown && (
+                    <View style={styles.inlineDropdown}>
+                      <ScrollView style={styles.inlineDropdownScroll} nestedScrollEnabled>
+                        {MONTHS.map((month, index) => (
                           <TouchableOpacity
-                            key={unit.value}
+                            key={month}
                             style={[
                               styles.dropdownItem,
-                              floor.priceUnit === unit.value && styles.dropdownItemSelected,
+                              possessionMonth === index + 1 && styles.dropdownItemSelected,
                             ]}
                             onPress={() => {
-                              updateFloor(index, 'priceUnit', unit.value);
-                              setActiveFloorDropdown(null);
+                              setPossessionMonth(index + 1);
+                              setShowMonthDropdown(false);
                             }}
                           >
                             <Text style={[
                               styles.dropdownItemText,
-                              floor.priceUnit === unit.value && styles.dropdownItemTextSelected,
+                              possessionMonth === index + 1 && styles.dropdownItemTextSelected,
                             ]}>
-                              {unit.label}
+                              {month}
                             </Text>
                           </TouchableOpacity>
                         ))}
-                      </View>
-                    )}
-                  </View>
-                ))}
-                <TouchableOpacity style={styles.addFloorButton} onPress={addFloor}>
-                  <Ionicons name="add-circle-outline" size={20} color="#4CAF50" />
-                  <Text style={styles.addFloorText}>Add Floor</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              /* Single Price for other property types */
-              <View style={styles.section}>
-                <Text style={styles.label}>Price</Text>
-                <View style={styles.priceRow}>
-                  <TextInput
-                    style={[styles.input, styles.priceInputSingle]}
-                    placeholder="00.00"
-                    placeholderTextColor="#666"
-                    value={price}
-                    onChangeText={setPrice}
-                    keyboardType="decimal-pad"
-                  />
+                      </ScrollView>
+                    </View>
+                  )}
+                </View>
+                <View style={styles.dropdownFieldContainer}>
                   <TouchableOpacity 
-                    style={styles.unitDropdown}
-                    onPress={() => setShowPriceDropdown(!showPriceDropdown)}
+                    style={styles.dropdownField}
+                    onPress={() => {
+                      setShowYearDropdown(!showYearDropdown);
+                      setShowMonthDropdown(false);
+                    }}
                   >
-                    <Text style={styles.unitText}>{getPriceUnitLabel(priceUnit)}</Text>
+                    <Text style={styles.dropdownFieldText}>
+                      {possessionYear !== null ? possessionYear.toString() : 'Year'}
+                    </Text>
                     <Ionicons name="chevron-down" size={20} color="#fff" />
                   </TouchableOpacity>
-                </View>
-                {showPriceDropdown && (
-                  <View style={styles.dropdownList}>
-                    {getAvailablePriceUnits().map((unit) => (
-                      <TouchableOpacity
-                        key={unit.value}
-                        style={[
-                          styles.dropdownItem,
-                          priceUnit === unit.value && styles.dropdownItemSelected,
-                        ]}
-                        onPress={() => {
-                          setPriceUnit(unit.value);
-                          setShowPriceDropdown(false);
-                        }}
-                      >
-                        <Text style={[
-                          styles.dropdownItemText,
-                          priceUnit === unit.value && styles.dropdownItemTextSelected,
-                        ]}>
-                          {unit.label}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
-              </View>
-            )}
-
-            {/* Builder Details */}
-            <View style={styles.section}>
-              <Text style={styles.label}>Builder Details</Text>
-              {builders.map((builder, index) => (
-                <View key={index} style={styles.builderContainer}>
-                  <View style={styles.builderRow}>
-                    <TextInput
-                      style={[styles.input, styles.builderNameInput]}
-                      placeholder="Builder name"
-                      placeholderTextColor="#666"
-                      value={builder.name}
-                      onChangeText={(text) => updateBuilder(index, 'name', text)}
-                    />
-                    <View style={styles.phoneContainer}>
-                      <TouchableOpacity 
-                        style={styles.countryCodeDropdown}
-                        onPress={() => {
-                          const currentIndex = COUNTRY_CODES.indexOf(builder.countryCode || '+91');
-                          const nextIndex = (currentIndex + 1) % COUNTRY_CODES.length;
-                          updateBuilder(index, 'countryCode', COUNTRY_CODES[nextIndex]);
-                        }}
-                      >
-                        <Text style={styles.countryCodeText}>{builder.countryCode || '+91'}</Text>
-                      </TouchableOpacity>
-                      <TextInput
-                        style={[styles.input, styles.builderPhoneInput]}
-                        placeholder="Phone"
-                        placeholderTextColor="#666"
-                        value={builder.phoneNumber}
-                        onChangeText={(text) => updateBuilder(index, 'phoneNumber', text)}
-                        keyboardType="phone-pad"
-                      />
+                  {showYearDropdown && (
+                    <View style={styles.inlineDropdown}>
+                      <ScrollView style={styles.inlineDropdownScroll} nestedScrollEnabled>
+                        {YEARS.map((year) => (
+                          <TouchableOpacity
+                            key={year}
+                            style={[
+                              styles.dropdownItem,
+                              possessionYear === year && styles.dropdownItemSelected,
+                            ]}
+                            onPress={() => {
+                              setPossessionYear(year);
+                              setShowYearDropdown(false);
+                            }}
+                          >
+                            <Text style={[
+                              styles.dropdownItemText,
+                              possessionYear === year && styles.dropdownItemTextSelected,
+                            ]}>
+                              {year}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
                     </View>
-                  </View>
-                  {builders.length > 1 && (
-                    <TouchableOpacity
-                      style={styles.removeBuilderButton}
-                      onPress={() => removeBuilder(index)}
-                    >
-                      <Ionicons name="close-circle" size={20} color="#ff4444" />
-                    </TouchableOpacity>
-                  )}
-                  {errors[`builderPhone_${index}`] && (
-                    <Text style={styles.errorText}>{errors[`builderPhone_${index}`]}</Text>
                   )}
                 </View>
-              ))}
-              <TouchableOpacity style={styles.addBuilderButton} onPress={addBuilder}>
-                <Ionicons name="add-circle-outline" size={20} color="#4CAF50" />
-                <Text style={styles.addBuilderText}>Add Builder</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Address */}
-            <View style={styles.section}>
-              <Text style={styles.label}>Address</Text>
-              <View style={styles.addressRow}>
-                <TextInput
-                  style={[styles.input, styles.addressInputSmall]}
-                  placeholder="Unit No"
-                  placeholderTextColor="#666"
-                  value={address.unitNo}
-                  onChangeText={(text) => setAddress({ ...address, unitNo: text })}
-                />
-                <TextInput
-                  style={[styles.input, styles.addressInputSmall]}
-                  placeholder="Block (if any)"
-                  placeholderTextColor="#666"
-                  value={address.block}
-                  onChangeText={(text) => setAddress({ ...address, block: text })}
-                />
-              </View>
-              <View style={styles.addressRow}>
-                <TextInput
-                  style={[styles.input, styles.addressInputSmall]}
-                  placeholder="Sector/Area"
-                  placeholderTextColor="#666"
-                  value={address.sector}
-                  onChangeText={(text) => setAddress({ ...address, sector: text })}
-                />
-                <TextInput
-                  style={[styles.input, styles.addressInputSmall]}
-                  placeholder="City"
-                  placeholderTextColor="#666"
-                  value={address.city}
-                  onChangeText={(text) => setAddress({ ...address, city: text })}
-                />
               </View>
             </View>
 
@@ -1321,86 +1304,6 @@ export default function AddPropertyScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-
-      {/* Month Picker Modal */}
-      <Modal
-        visible={showMonthPicker}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowMonthPicker(false)}
-      >
-        <TouchableOpacity 
-          style={styles.modalOverlay} 
-          activeOpacity={1}
-          onPress={() => setShowMonthPicker(false)}
-        >
-          <View style={styles.pickerModal}>
-            <Text style={styles.pickerTitle}>Select Month</Text>
-            <ScrollView style={styles.pickerScroll}>
-              {MONTHS.map((month, index) => (
-                <TouchableOpacity
-                  key={month}
-                  style={[
-                    styles.pickerItem,
-                    possessionMonth === index + 1 && styles.pickerItemSelected,
-                  ]}
-                  onPress={() => {
-                    setPossessionMonth(index + 1);
-                    setShowMonthPicker(false);
-                  }}
-                >
-                  <Text style={[
-                    styles.pickerItemText,
-                    possessionMonth === index + 1 && styles.pickerItemTextSelected,
-                  ]}>
-                    {month}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
-      {/* Year Picker Modal */}
-      <Modal
-        visible={showYearPicker}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowYearPicker(false)}
-      >
-        <TouchableOpacity 
-          style={styles.modalOverlay} 
-          activeOpacity={1}
-          onPress={() => setShowYearPicker(false)}
-        >
-          <View style={styles.pickerModal}>
-            <Text style={styles.pickerTitle}>Select Year</Text>
-            <ScrollView style={styles.pickerScroll}>
-              {YEARS.map((year) => (
-                <TouchableOpacity
-                  key={year}
-                  style={[
-                    styles.pickerItem,
-                    possessionYear === year && styles.pickerItemSelected,
-                  ]}
-                  onPress={() => {
-                    setPossessionYear(year);
-                    setShowYearPicker(false);
-                  }}
-                >
-                  <Text style={[
-                    styles.pickerItemText,
-                    possessionYear === year && styles.pickerItemTextSelected,
-                  ]}>
-                    {year}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </TouchableOpacity>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -1452,6 +1355,9 @@ const styles = StyleSheet.create({
   },
   section: {
     marginBottom: 24,
+  },
+  subSection: {
+    marginTop: 16,
   },
   label: {
     fontSize: 16,
@@ -1559,7 +1465,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
   },
-  dropdownButton: {
+  dropdownFieldContainer: {
+    flex: 1,
+    position: 'relative',
+  },
+  dropdownField: {
     backgroundColor: '#1a1a1a',
     borderWidth: 1,
     borderColor: '#333',
@@ -1569,16 +1479,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  dropdownButtonText: {
+  dropdownFieldText: {
     color: '#fff',
     fontSize: 16,
   },
-  priceRow: {
-    flexDirection: 'row',
-    gap: 12,
+  inlineDropdown: {
+    backgroundColor: '#1a1a1a',
+    borderWidth: 1,
+    borderColor: '#333',
+    borderRadius: 12,
+    marginTop: 4,
+    maxHeight: 200,
+    overflow: 'hidden',
   },
-  priceInputSingle: {
-    flex: 1,
+  inlineDropdownScroll: {
+    maxHeight: 200,
   },
   unitDropdown: {
     backgroundColor: '#1a1a1a',
@@ -1643,23 +1558,8 @@ const styles = StyleSheet.create({
   priceContainer: {
     flex: 1,
   },
-  priceInputRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
   floorPriceInput: {
-    flex: 1,
-  },
-  floorUnitDropdown: {
-    backgroundColor: '#1a1a1a',
-    borderWidth: 1,
-    borderColor: '#333',
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
+    width: '100%',
   },
   removeFloorButton: {
     padding: 4,
@@ -1851,47 +1751,5 @@ const styles = StyleSheet.create({
     color: '#000',
     fontSize: 16,
     fontWeight: 'bold',
-  },
-  // Modal styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  pickerModal: {
-    backgroundColor: '#1a1a1a',
-    borderRadius: 16,
-    padding: 16,
-    width: '100%',
-    maxWidth: 300,
-    maxHeight: 400,
-  },
-  pickerTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  pickerScroll: {
-    maxHeight: 320,
-  },
-  pickerItem: {
-    padding: 14,
-    borderRadius: 8,
-    marginBottom: 4,
-  },
-  pickerItemSelected: {
-    backgroundColor: '#333',
-  },
-  pickerItemText: {
-    color: '#fff',
-    fontSize: 16,
-    textAlign: 'center',
-  },
-  pickerItemTextSelected: {
-    fontWeight: '600',
   },
 });
