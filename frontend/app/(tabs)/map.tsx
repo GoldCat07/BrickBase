@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import {
   View,
   Text,
@@ -13,18 +13,6 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
-
-// Conditionally import react-native-maps only on native platforms
-let MapView: any = null;
-let Marker: any = null;
-let PROVIDER_GOOGLE: any = null;
-
-if (Platform.OS !== 'web') {
-  const Maps = require('react-native-maps');
-  MapView = Maps.default;
-  Marker = Maps.Marker;
-  PROVIDER_GOOGLE = Maps.PROVIDER_GOOGLE;
-}
 import { useAuth } from '../../contexts/AuthContext';
 import {
   Property,
@@ -43,12 +31,9 @@ import api from '../../lib/api';
 
 const { width, height } = Dimensions.get('window');
 
-const GOOGLE_MAPS_API_KEY = 'AIzaSyC46BsGdP0YtuAuxdlgP8rTni1vwmy4oDA';
-
 export default function MapScreen() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
-  const mapRef = useRef<MapView>(null);
   const [properties, setProperties] = useState<Property[]>([]);
   const [filteredProperties, setFilteredProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
@@ -184,17 +169,6 @@ export default function MapScreen() {
     });
   };
 
-  const goToUserLocation = () => {
-    if (userLocation && mapRef.current) {
-      mapRef.current.animateToRegion({
-        latitude: userLocation.latitude,
-        longitude: userLocation.longitude,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      }, 1000);
-    }
-  };
-
   const getPropertyTypes = (): PropertyType[] => {
     if (propertyCategory === 'Residential') {
       return RESIDENTIAL_PROPERTY_TYPES;
@@ -202,24 +176,6 @@ export default function MapScreen() {
       return COMMERCIAL_PROPERTY_TYPES;
     }
     return [...RESIDENTIAL_PROPERTY_TYPES, ...COMMERCIAL_PROPERTY_TYPES];
-  };
-
-  const getInitialRegion = () => {
-    if (userLocation) {
-      return {
-        latitude: userLocation.latitude,
-        longitude: userLocation.longitude,
-        latitudeDelta: 0.05,
-        longitudeDelta: 0.05,
-      };
-    }
-    // Default to India (Delhi area)
-    return {
-      latitude: 28.6139,
-      longitude: 77.209,
-      latitudeDelta: 0.1,
-      longitudeDelta: 0.1,
-    };
   };
 
   if (loading) {
@@ -231,100 +187,52 @@ export default function MapScreen() {
     );
   }
 
-  // Web fallback
-  if (Platform.OS === 'web') {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.webFallback}>
-          <Ionicons name="map" size={64} color="#666" />
-          <Text style={styles.webFallbackTitle}>Map View</Text>
-          <Text style={styles.webFallbackText}>
-            Interactive map is available on mobile devices via Expo Go
-          </Text>
-          <Text style={styles.propertyCount}>
-            {filteredProperties.length} properties with location data
-          </Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
+  // Always show web fallback - Native maps only work on Expo Go
   return (
-    <View style={styles.container}>
-      {/* Map */}
-      <MapView
-        ref={mapRef}
-        style={styles.map}
-        provider={PROVIDER_GOOGLE}
-        initialRegion={getInitialRegion()}
-        showsUserLocation={true}
-        showsMyLocationButton={false}
-        showsCompass={true}
-        mapType="standard"
+    <SafeAreaView style={styles.container} edges={['bottom']}>
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 16) + 80 }}
       >
-        {filteredProperties.map((property) => (
-          <Marker
-            key={property.id}
-            coordinate={{
-              latitude: property.latitude!,
-              longitude: property.longitude!,
-            }}
-            onPress={() => setSelectedProperty(property)}
+        {/* Search Bar */}
+        <View style={styles.searchSection}>
+          <TouchableOpacity 
+            style={styles.searchBar}
+            onPress={() => setShowFilters(!showFilters)}
+            activeOpacity={0.8}
           >
-            {/* Custom Marker View */}
-            <View style={[
-              styles.markerContainer,
-              property.isSold && styles.markerSold
-            ]}>
-              <Text style={styles.markerPrice}>{formatPrice(property)}</Text>
-            </View>
-          </Marker>
-        ))}
-      </MapView>
-
-      {/* Floating Search & Filters */}
-      <View style={[styles.searchOverlay, { top: insets.top + 8 }]}>
-        <TouchableOpacity 
-          style={styles.searchBar}
-          onPress={() => setShowFilters(!showFilters)}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="search" size={20} color="#666" />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search on map..."
-            placeholderTextColor="#666"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            onFocus={() => setShowFilters(true)}
-          />
-          <TouchableOpacity onPress={() => setShowFilters(!showFilters)}>
-            <Ionicons 
-              name={showFilters ? "chevron-up" : "options-outline"} 
-              size={22} 
-              color="#fff" 
+            <Ionicons name="search" size={20} color="#666" />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search properties..."
+              placeholderTextColor="#666"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              onFocus={() => setShowFilters(true)}
             />
+            <TouchableOpacity onPress={() => setShowFilters(!showFilters)}>
+              <Ionicons 
+                name={showFilters ? "chevron-up" : "options-outline"} 
+                size={22} 
+                color="#fff" 
+              />
+            </TouchableOpacity>
           </TouchableOpacity>
-        </TouchableOpacity>
 
-        {hasActiveFilters && (
-          <TouchableOpacity style={styles.clearButton} onPress={clearFilters}>
-            <Ionicons name="close-circle" size={14} color="#ff4444" />
-            <Text style={styles.clearButtonText}>Clear</Text>
-          </TouchableOpacity>
-        )}
-      </View>
+          {hasActiveFilters && (
+            <TouchableOpacity style={styles.clearButton} onPress={clearFilters}>
+              <Ionicons name="close-circle" size={16} color="#ff4444" />
+              <Text style={styles.clearButtonText}>Clear All</Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
-      {/* Expanded Filters */}
-      {showFilters && (
-        <View style={[styles.filtersOverlay, { top: insets.top + 70 }]}>
-          <ScrollView 
-            style={styles.filtersScroll}
-            showsVerticalScrollIndicator={false}
-          >
+        {/* Expanded Filters */}
+        {showFilters && (
+          <View style={styles.filtersContainer}>
             {/* Property Category */}
             <View style={styles.filterSection}>
-              <Text style={styles.filterLabel}>Category</Text>
+              <Text style={styles.filterLabel}>Property Category</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 <View style={styles.chipContainer}>
                   <TouchableOpacity
@@ -354,7 +262,7 @@ export default function MapScreen() {
 
             {/* Property Type */}
             <View style={styles.filterSection}>
-              <Text style={styles.filterLabel}>Type</Text>
+              <Text style={styles.filterLabel}>Property Type</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 <View style={styles.chipContainer}>
                   <TouchableOpacity
@@ -378,7 +286,7 @@ export default function MapScreen() {
 
             {/* Case Type */}
             <View style={styles.filterSection}>
-              <Text style={styles.filterLabel}>Case</Text>
+              <Text style={styles.filterLabel}>Case Type</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 <View style={styles.chipContainer}>
                   <TouchableOpacity
@@ -409,75 +317,88 @@ export default function MapScreen() {
             >
               <Ionicons 
                 name={includeSold ? 'checkbox' : 'square-outline'} 
-                size={20} 
+                size={24} 
                 color="#fff" 
               />
-              <Text style={styles.soldToggleText}>Show Sold</Text>
+              <Text style={styles.soldToggleText}>Include Sold Properties</Text>
             </TouchableOpacity>
-          </ScrollView>
-        </View>
-      )}
+          </View>
+        )}
 
-      {/* My Location Button */}
-      <TouchableOpacity 
-        style={[styles.myLocationButton, { bottom: insets.bottom + 180 }]}
-        onPress={goToUserLocation}
-      >
-        <Ionicons name="locate" size={24} color="#fff" />
-      </TouchableOpacity>
-
-      {/* Property Count */}
-      <View style={[styles.propertyCountBadge, { bottom: insets.bottom + 130 }]}>
-        <Text style={styles.propertyCountText}>
-          {filteredProperties.length} properties
-        </Text>
-      </View>
-
-      {/* Selected Property Card */}
-      {selectedProperty && (
-        <TouchableOpacity 
-          style={[styles.propertyCard, { bottom: insets.bottom + 20 }]}
-          onPress={() => handlePropertyPress(selectedProperty)}
-          activeOpacity={0.9}
-        >
-          <TouchableOpacity 
-            style={styles.cardClose}
-            onPress={() => setSelectedProperty(null)}
-          >
-            <Ionicons name="close" size={20} color="#fff" />
-          </TouchableOpacity>
-          
-          {selectedProperty.propertyPhotos?.[0] && (
-            <Image 
-              source={{ uri: selectedProperty.propertyPhotos[0] }} 
-              style={styles.cardImage}
-            />
-          )}
-          
-          <View style={styles.cardContent}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.cardType}>{selectedProperty.propertyType}</Text>
-              {selectedProperty.isSold && (
-                <View style={styles.soldBadge}>
-                  <Text style={styles.soldBadgeText}>SOLD</Text>
-                </View>
-              )}
+        {/* Map Info Section */}
+        <View style={styles.mapInfoSection}>
+          <View style={styles.mapIconContainer}>
+            <Ionicons name="map" size={64} color="#4CAF50" />
+          </View>
+          <Text style={styles.mapTitle}>Map View</Text>
+          <Text style={styles.mapDescription}>
+            Interactive map with property markers is available on mobile devices via Expo Go app.
+          </Text>
+          <View style={styles.statsRow}>
+            <View style={styles.statItem}>
+              <Text style={styles.statNumber}>{filteredProperties.length}</Text>
+              <Text style={styles.statLabel}>Properties</Text>
             </View>
-            <Text style={styles.cardPrice}>{formatPrice(selectedProperty)}</Text>
-            {selectedProperty.address?.sector && (
-              <Text style={styles.cardAddress}>
-                {selectedProperty.address.sector}
-                {selectedProperty.address.city ? `, ${selectedProperty.address.city}` : ''}
+            <View style={styles.statItem}>
+              <Text style={styles.statNumber}>
+                {filteredProperties.filter(p => p.latitude && p.longitude).length}
               </Text>
-            )}
-            <View style={styles.cardFooter}>
-              <Text style={styles.cardViewMore}>Tap to view details</Text>
-              <Ionicons name="chevron-forward" size={16} color="#4CAF50" />
+              <Text style={styles.statLabel}>With Location</Text>
             </View>
           </View>
-        </TouchableOpacity>
-      )}
-    </View>
+        </View>
+
+        {/* Property List View as Alternative */}
+        <View style={styles.listSection}>
+          <Text style={styles.sectionTitle}>Properties with Location Data</Text>
+          {filteredProperties.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="location-outline" size={48} color="#666" />
+              <Text style={styles.emptyText}>No properties found</Text>
+            </View>
+          ) : (
+            filteredProperties.map((property) => (
+              <TouchableOpacity
+                key={property.id}
+                style={styles.propertyItem}
+                onPress={() => handlePropertyPress(property)}
+              >
+                {property.propertyPhotos?.[0] && (
+                  <Image 
+                    source={{ uri: property.propertyPhotos[0] }} 
+                    style={styles.propertyImage}
+                  />
+                )}
+                <View style={styles.propertyContent}>
+                  <View style={styles.propertyHeader}>
+                    <Text style={styles.propertyType}>{property.propertyType}</Text>
+                    {property.isSold && (
+                      <View style={styles.soldBadge}>
+                        <Text style={styles.soldBadgeText}>SOLD</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={styles.propertyPrice}>{formatPrice(property)}</Text>
+                  {property.address?.sector && (
+                    <Text style={styles.propertyAddress}>
+                      {property.address.sector}
+                      {property.address.city ? `, ${property.address.city}` : ''}
+                    </Text>
+                  )}
+                  <View style={styles.locationRow}>
+                    <Ionicons name="location" size={14} color="#4CAF50" />
+                    <Text style={styles.coordinates}>
+                      {property.latitude?.toFixed(4)}, {property.longitude?.toFixed(4)}
+                    </Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#666" />
+              </TouchableOpacity>
+            ))
+          )}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -497,61 +418,12 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 16,
   },
-  map: {
+  scrollView: {
     flex: 1,
   },
-  webFallback: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 32,
-  },
-  webFallbackTitle: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginTop: 16,
-  },
-  webFallbackText: {
-    color: '#999',
-    fontSize: 14,
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  propertyCount: {
-    color: '#4CAF50',
-    fontSize: 14,
-    marginTop: 16,
-  },
-  // Marker styles
-  markerContainer: {
-    backgroundColor: '#fff',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: '#4CAF50',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  markerSold: {
-    backgroundColor: '#ff4444',
-    borderColor: '#ff4444',
-  },
-  markerPrice: {
-    color: '#000',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  // Search overlay
-  searchOverlay: {
-    position: 'absolute',
-    left: 16,
-    right: 16,
-    zIndex: 1,
+  searchSection: {
+    padding: 16,
+    paddingBottom: 8,
   },
   searchBar: {
     flexDirection: 'row',
@@ -573,49 +445,40 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     alignSelf: 'flex-start',
-    padding: 6,
+    padding: 8,
     marginTop: 4,
-    backgroundColor: 'rgba(26, 26, 26, 0.9)',
-    borderRadius: 12,
   },
   clearButtonText: {
     color: '#ff4444',
-    fontSize: 12,
+    fontSize: 14,
   },
-  // Filters overlay
-  filtersOverlay: {
-    position: 'absolute',
-    left: 16,
-    right: 16,
-    backgroundColor: 'rgba(26, 26, 26, 0.95)',
-    borderRadius: 12,
-    padding: 12,
-    maxHeight: 250,
-    zIndex: 1,
-  },
-  filtersScroll: {
-    maxHeight: 230,
+  filtersContainer: {
+    backgroundColor: '#0c0c0c',
+    padding: 16,
+    paddingTop: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
   },
   filterSection: {
-    marginBottom: 12,
+    marginBottom: 16,
   },
   filterLabel: {
     color: '#999',
-    fontSize: 11,
-    marginBottom: 6,
+    fontSize: 12,
+    marginBottom: 8,
     fontWeight: '600',
   },
   chipContainer: {
     flexDirection: 'row',
-    gap: 6,
+    gap: 8,
   },
   chip: {
-    backgroundColor: '#2a2a2a',
+    backgroundColor: '#1a1a1a',
     borderWidth: 1,
-    borderColor: '#444',
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    borderColor: '#333',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
   },
   chipSelected: {
     backgroundColor: '#fff',
@@ -623,7 +486,7 @@ const styles = StyleSheet.create({
   },
   chipText: {
     color: '#fff',
-    fontSize: 12,
+    fontSize: 13,
   },
   chipTextSelected: {
     color: '#000',
@@ -632,87 +495,96 @@ const styles = StyleSheet.create({
   soldToggle: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
     marginTop: 4,
   },
   soldToggleText: {
     color: '#fff',
-    fontSize: 12,
+    fontSize: 14,
   },
-  // My Location Button
-  myLocationButton: {
-    position: 'absolute',
-    right: 16,
-    backgroundColor: '#1a1a1a',
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
+  mapInfoSection: {
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#333',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  // Property count badge
-  propertyCountBadge: {
-    position: 'absolute',
-    right: 16,
-    backgroundColor: 'rgba(26, 26, 26, 0.9)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    padding: 32,
+    backgroundColor: '#1a1a1a',
+    margin: 16,
     borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#333',
   },
-  propertyCountText: {
+  mapIconContainer: {
+    marginBottom: 16,
+  },
+  mapTitle: {
     color: '#fff',
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  mapDescription: {
+    color: '#999',
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    gap: 48,
+  },
+  statItem: {
+    alignItems: 'center',
+  },
+  statNumber: {
+    color: '#4CAF50',
+    fontSize: 32,
+    fontWeight: 'bold',
+  },
+  statLabel: {
+    color: '#666',
     fontSize: 12,
   },
-  // Property Card
-  propertyCard: {
-    position: 'absolute',
-    left: 16,
-    right: 16,
+  listSection: {
+    padding: 16,
+    paddingTop: 8,
+  },
+  sectionTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 16,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    padding: 32,
+  },
+  emptyText: {
+    color: '#666',
+    marginTop: 12,
+  },
+  propertyItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#1a1a1a',
-    borderRadius: 16,
-    overflow: 'hidden',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    gap: 12,
     borderWidth: 1,
     borderColor: '#333',
-    flexDirection: 'row',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 10,
   },
-  cardClose: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    borderRadius: 12,
-    padding: 4,
-    zIndex: 1,
-  },
-  cardImage: {
-    width: 120,
-    height: 110,
+  propertyImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
     backgroundColor: '#333',
   },
-  cardContent: {
+  propertyContent: {
     flex: 1,
-    padding: 12,
   },
-  cardHeader: {
+  propertyHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    marginBottom: 4,
   },
-  cardType: {
+  propertyType: {
     color: '#999',
     fontSize: 12,
   },
@@ -727,25 +599,25 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: 'bold',
   },
-  cardPrice: {
+  propertyPrice: {
     color: '#fff',
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
-    marginTop: 4,
+    marginBottom: 4,
   },
-  cardAddress: {
+  propertyAddress: {
     color: '#666',
     fontSize: 12,
-    marginTop: 4,
+    marginBottom: 4,
   },
-  cardFooter: {
+  locationRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 8,
     gap: 4,
   },
-  cardViewMore: {
+  coordinates: {
     color: '#4CAF50',
-    fontSize: 12,
+    fontSize: 11,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
 });
