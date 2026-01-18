@@ -196,7 +196,7 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
         // Base64 image - extract and save
         const base64Data = imageUri.split(',')[1];
         await FileSystem.writeAsStringAsync(localUri, base64Data, {
-          encoding: FileSystem.EncodingType.Base64,
+          encoding: 'base64', // Use string instead of enum
         });
         return localUri;
       } else if (imageUri.startsWith('http')) {
