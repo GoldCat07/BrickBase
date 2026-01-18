@@ -8,13 +8,14 @@ import {
   Image,
   Dimensions,
   Modal,
-  Share,
   Alert,
   Platform,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Property, SIZE_UNITS } from '../types/property';
 import * as Sharing from 'expo-sharing';
+import * as FileSystem from 'expo-file-system';
 
 const { width, height } = Dimensions.get('window');
 const PHOTO_HEIGHT = height * 0.28;
@@ -37,6 +38,7 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
     property.propertyPhotos?.map(() => true) || []
   );
   const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
+  const [sharing, setSharing] = useState(false);
   
   const getSizeUnitLabel = (unit: string) => {
     const found = SIZE_UNITS.find(u => u.value === unit);
@@ -143,8 +145,6 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
       fields.push({ key: 'additionalNotes', label: 'Additional Notes', value: property.additionalNotes, selected: true });
     }
     
-    // REMOVED: builder name, builder phone, location from shareable fields
-    
     return fields;
   }, [property]);
   
@@ -190,29 +190,97 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
     
     return text;
   };
-  
-  const handleShare = async () => {
+
+  // Convert base64 to file and share
+  const shareWithPhotos = async () => {
     try {
+      setSharing(true);
       const shareText = generateShareText();
-      const selectedPhotoUris = property.propertyPhotos?.filter((_, i) => selectedPhotos[i]) || [];
+      const selectedPhotoData = property.propertyPhotos?.filter((_, i) => selectedPhotos[i]) || [];
       
-      // Note about photo sharing behavior:
-      // Photos are selected but shared as a group with text as caption
-      const photoCount = selectedPhotoUris.length;
-      let message = shareText;
-      
-      if (photoCount > 0) {
-        message += `\n📸 ${photoCount} photo(s) attached`;
+      if (selectedPhotoData.length === 0) {
+        // No photos selected, just share text via WhatsApp
+        const encodedText = encodeURIComponent(shareText);
+        const whatsappUrl = `whatsapp://send?text=${encodedText}`;
+        
+        const canOpen = await Linking.canOpenURL(whatsappUrl);
+        if (canOpen) {
+          await Linking.openURL(whatsappUrl);
+        } else {
+          Alert.alert('Error', 'WhatsApp is not installed');
+        }
+        onClose();
+        return;
       }
+
+      // Check if sharing is available
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (!isAvailable) {
+        // Fallback to just text
+        const encodedText = encodeURIComponent(shareText);
+        const whatsappUrl = `whatsapp://send?text=${encodedText}`;
+        await Linking.openURL(whatsappUrl);
+        onClose();
+        return;
+      }
+
+      // Save first photo to a temporary file and share
+      const photoUri = selectedPhotoData[0];
+      let fileUri = '';
       
-      await Share.share({
-        message: message,
-      });
-      
-      onClose();
+      if (photoUri.startsWith('data:image')) {
+        // It's base64, need to save to file
+        const base64Data = photoUri.split(',')[1];
+        const filename = `property_${Date.now()}.jpg`;
+        fileUri = FileSystem.cacheDirectory + filename;
+        await FileSystem.writeAsStringAsync(fileUri, base64Data, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+      } else {
+        // It's already a URI
+        fileUri = photoUri;
+      }
+
+      // Share the image - the user can then add caption in WhatsApp
+      // Add note about sharing
+      Alert.alert(
+        'Share to WhatsApp',
+        `Sharing ${selectedPhotoData.length} photo(s). You can add the property details as caption in WhatsApp.\n\n${shareText.substring(0, 200)}...`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Share',
+            onPress: async () => {
+              try {
+                await Sharing.shareAsync(fileUri, {
+                  mimeType: 'image/jpeg',
+                  dialogTitle: 'Share Property',
+                  UTI: 'public.jpeg',
+                });
+                
+                // After sharing image, copy text to clipboard for easy pasting
+                if (Platform.OS !== 'web') {
+                  const Clipboard = require('expo-clipboard');
+                  await Clipboard.setStringAsync(shareText);
+                  Alert.alert(
+                    'Text Copied!', 
+                    'Property details have been copied to clipboard. You can paste them as caption in WhatsApp.',
+                    [{ text: 'OK' }]
+                  );
+                }
+                onClose();
+              } catch (err) {
+                console.error('Sharing failed:', err);
+              }
+            }
+          }
+        ]
+      );
     } catch (error: any) {
       console.error('Error sharing:', error);
       Alert.alert('Error', 'Failed to share. Please try again.');
+    } finally {
+      setSharing(false);
     }
   };
   
@@ -248,7 +316,7 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
           {property.propertyPhotos && property.propertyPhotos.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Photos (tap to select/deselect)</Text>
-              <Text style={styles.sectionSubtitle}>Photos will be shared as a group with details as caption</Text>
+              <Text style={styles.sectionSubtitle}>Share image and copy text as caption</Text>
               <ScrollView 
                 horizontal 
                 showsHorizontalScrollIndicator={false}
@@ -311,8 +379,16 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
         </ScrollView>
         
         {/* Share Button */}
-        <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
-          <Ionicons name="arrow-forward" size={24} color="#fff" />
+        <TouchableOpacity 
+          style={[styles.shareButton, sharing && styles.shareButtonDisabled]} 
+          onPress={shareWithPhotos}
+          disabled={sharing}
+        >
+          {sharing ? (
+            <Text style={styles.shareButtonText}>Sharing...</Text>
+          ) : (
+            <Ionicons name="arrow-forward" size={24} color="#fff" />
+          )}
         </TouchableOpacity>
         
         {/* Photo Preview Modal */}
@@ -478,6 +554,13 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
+  },
+  shareButtonDisabled: {
+    backgroundColor: '#666',
+  },
+  shareButtonText: {
+    color: '#fff',
+    fontSize: 10,
   },
   previewOverlay: {
     flex: 1,
