@@ -41,6 +41,7 @@ import {
 } from '../../types/property';
 import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import api from '../../lib/api';
+import { setNewPropertyAdded } from '../../lib/cache';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const MAX_CONTENT_WIDTH = 500;
