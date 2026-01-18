@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Property, SIZE_UNITS } from '../types/property';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system';
+import * as Clipboard from 'expo-clipboard';
 
 const { width, height } = Dimensions.get('window');
 const PHOTO_HEIGHT = height * 0.28;
@@ -54,7 +55,6 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
     }
   };
   
-  // Build field options from property data - REMOVED builder name, phone, location
   const buildFieldOptions = useCallback((): FieldOption[] => {
     const fields: FieldOption[] = [];
     
@@ -66,7 +66,6 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
       fields.push({ key: 'propertyType', label: 'Property Type', value: property.propertyType, selected: true });
     }
     
-    // Price - handle multi-floor
     if (property.floors && property.floors.length > 0) {
       const floorPrices = property.floors.map(f => {
         const unit = f.priceUnit === 'cr' ? 'Cr' : f.priceUnit === 'lakh_per_month' ? 'L/mo' : 'L';
@@ -75,10 +74,10 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
       fields.push({ key: 'floors', label: 'Floor Prices', value: floorPrices, selected: true });
     } else if (property.price) {
       const priceStr = property.priceUnit === 'cr' 
-        ? `₹${property.price.toFixed(2)} Cr` 
+        ? `₹${property.price} Cr` 
         : property.priceUnit === 'lakh_per_month'
-        ? `₹${property.price.toFixed(2)} Lakhs/month`
-        : `₹${property.price.toFixed(2)} Lakhs`;
+        ? `₹${property.price} Lakhs/month`
+        : `₹${property.price} Lakhs`;
       fields.push({ key: 'price', label: 'Price', value: priceStr, selected: true });
     }
     
@@ -86,7 +85,6 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
       fields.push({ key: 'floor', label: 'Floor', value: String(property.floor), selected: true });
     }
 
-    // Size/Area
     if (property.sizes && property.sizes.length > 0) {
       const sizesStr = property.sizes.map(s => 
         `${getSizeTypeLabel(s.type)}: ${s.value} ${getSizeUnitLabel(s.unit)}`
@@ -94,7 +92,6 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
       fields.push({ key: 'sizes', label: 'Size', value: sizesStr, selected: true });
     }
     
-    // Address
     if (property.address && (property.address.sector || property.address.city)) {
       let addressStr = '';
       if (property.address.unitNo) addressStr += `Unit ${property.address.unitNo}, `;
@@ -130,7 +127,6 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
       fields.push({ key: 'possession', label: 'Possession', value: possessionStr, selected: true });
     }
     
-    // Features
     const features: string[] = [];
     if (property.clubProperty) features.push('Club');
     if (property.poolProperty) features.push('Pool');
@@ -150,7 +146,6 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
   
   const [fieldOptions, setFieldOptions] = useState<FieldOption[]>(buildFieldOptions());
   
-  // Reset state when modal opens
   React.useEffect(() => {
     if (visible) {
       setSelectedPhotos(property.propertyPhotos?.map(() => true) || []);
@@ -191,15 +186,17 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
     return text;
   };
 
-  // Convert base64 to file and share
   const shareWithPhotos = async () => {
     try {
       setSharing(true);
       const shareText = generateShareText();
       const selectedPhotoData = property.propertyPhotos?.filter((_, i) => selectedPhotos[i]) || [];
       
-      if (selectedPhotoData.length === 0) {
-        // No photos selected, just share text via WhatsApp
+      // Check if sharing is available
+      const isAvailable = await Sharing.isAvailableAsync();
+      
+      if (selectedPhotoData.length === 0 || !isAvailable) {
+        // No photos or sharing not available - share text via WhatsApp
         const encodedText = encodeURIComponent(shareText);
         const whatsappUrl = `whatsapp://send?text=${encodedText}`;
         
@@ -207,78 +204,60 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
         if (canOpen) {
           await Linking.openURL(whatsappUrl);
         } else {
-          Alert.alert('Error', 'WhatsApp is not installed');
+          // Fallback to system share
+          Alert.alert('WhatsApp not found', 'Text copied to clipboard. You can paste it manually.');
+          await Clipboard.setStringAsync(shareText);
         }
         onClose();
         return;
       }
 
-      // Check if sharing is available
-      const isAvailable = await Sharing.isAvailableAsync();
-      if (!isAvailable) {
-        // Fallback to just text
-        const encodedText = encodeURIComponent(shareText);
-        const whatsappUrl = `whatsapp://send?text=${encodedText}`;
-        await Linking.openURL(whatsappUrl);
-        onClose();
-        return;
-      }
-
-      // Save first photo to a temporary file and share
+      // Save first photo to temp file
       const photoUri = selectedPhotoData[0];
       let fileUri = '';
       
       if (photoUri.startsWith('data:image')) {
-        // It's base64, need to save to file
+        // Extract base64 data
         const base64Data = photoUri.split(',')[1];
         const filename = `property_${Date.now()}.jpg`;
         fileUri = FileSystem.cacheDirectory + filename;
+        
+        // Write file using base64 encoding
         await FileSystem.writeAsStringAsync(fileUri, base64Data, {
-          encoding: FileSystem.EncodingType.Base64,
+          encoding: 'base64',
         });
       } else {
-        // It's already a URI
         fileUri = photoUri;
       }
 
-      // Share the image - the user can then add caption in WhatsApp
-      // Add note about sharing
+      // Copy text to clipboard first
+      await Clipboard.setStringAsync(shareText);
+      
+      // Share the image
+      await Sharing.shareAsync(fileUri, {
+        mimeType: 'image/jpeg',
+        dialogTitle: 'Share Property',
+      });
+      
       Alert.alert(
-        'Share to WhatsApp',
-        `Sharing ${selectedPhotoData.length} photo(s). You can add the property details as caption in WhatsApp.\n\n${shareText.substring(0, 200)}...`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Share',
-            onPress: async () => {
-              try {
-                await Sharing.shareAsync(fileUri, {
-                  mimeType: 'image/jpeg',
-                  dialogTitle: 'Share Property',
-                  UTI: 'public.jpeg',
-                });
-                
-                // After sharing image, copy text to clipboard for easy pasting
-                if (Platform.OS !== 'web') {
-                  const Clipboard = require('expo-clipboard');
-                  await Clipboard.setStringAsync(shareText);
-                  Alert.alert(
-                    'Text Copied!', 
-                    'Property details have been copied to clipboard. You can paste them as caption in WhatsApp.',
-                    [{ text: 'OK' }]
-                  );
-                }
-                onClose();
-              } catch (err) {
-                console.error('Sharing failed:', err);
-              }
-            }
-          }
-        ]
+        'Text Copied!', 
+        'Property details have been copied to clipboard. Paste them in WhatsApp as caption.',
+        [{ text: 'OK' }]
       );
+      
+      onClose();
     } catch (error: any) {
       console.error('Error sharing:', error);
-      Alert.alert('Error', 'Failed to share. Please try again.');
+      // Fallback: just share text
+      try {
+        const shareText = generateShareText();
+        await Clipboard.setStringAsync(shareText);
+        const encodedText = encodeURIComponent(shareText);
+        await Linking.openURL(`whatsapp://send?text=${encodedText}`);
+        onClose();
+      } catch (e) {
+        Alert.alert('Error', 'Could not share. Text has been copied to clipboard.');
+      }
     } finally {
       setSharing(false);
     }
@@ -295,7 +274,6 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
       onRequestClose={onClose}
     >
       <View style={styles.container}>
-        {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
             <Ionicons name="close" size={24} color="#fff" />
@@ -304,7 +282,6 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
           <View style={styles.placeholder} />
         </View>
         
-        {/* Selection Summary */}
         <View style={styles.summary}>
           <Text style={styles.summaryText}>
             {selectedPhotosCount} photo(s) • {selectedFieldsCount} field(s) selected
@@ -312,11 +289,10 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
         </View>
         
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-          {/* Photos Section */}
           {property.propertyPhotos && property.propertyPhotos.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Photos (tap to select/deselect)</Text>
-              <Text style={styles.sectionSubtitle}>Share image and copy text as caption</Text>
+              <Text style={styles.sectionSubtitle}>Image will be shared, text copied to clipboard</Text>
               <ScrollView 
                 horizontal 
                 showsHorizontalScrollIndicator={false}
@@ -349,7 +325,6 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
             </View>
           )}
           
-          {/* Fields Section */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Property Details</Text>
             {fieldOptions.map((field) => (
@@ -374,24 +349,21 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
             ))}
           </View>
           
-          {/* Bottom Padding */}
           <View style={{ height: 100 }} />
         </ScrollView>
         
-        {/* Share Button */}
         <TouchableOpacity 
           style={[styles.shareButton, sharing && styles.shareButtonDisabled]} 
           onPress={shareWithPhotos}
           disabled={sharing}
         >
           {sharing ? (
-            <Text style={styles.shareButtonText}>Sharing...</Text>
+            <Text style={styles.shareButtonText}>...</Text>
           ) : (
             <Ionicons name="arrow-forward" size={24} color="#fff" />
           )}
         </TouchableOpacity>
         
-        {/* Photo Preview Modal */}
         <Modal
           visible={!!previewPhoto}
           transparent
@@ -560,7 +532,7 @@ const styles = StyleSheet.create({
   },
   shareButtonText: {
     color: '#fff',
-    fontSize: 10,
+    fontSize: 12,
   },
   previewOverlay: {
     flex: 1,
