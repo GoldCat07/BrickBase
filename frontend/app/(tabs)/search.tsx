@@ -8,9 +8,7 @@ import {
   ScrollView,
   ActivityIndicator,
   RefreshControl,
-  Dimensions,
   Linking,
-  Modal,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -30,9 +28,13 @@ import { router, useFocusEffect } from 'expo-router';
 import PropertyCard from '../../components/PropertyCard';
 import WhatsAppShareModal from '../../components/WhatsAppShareModal';
 import api from '../../lib/api';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const MAX_CONTENT_WIDTH = 600;
+import {
+  getCachedProperties,
+  cacheProperties,
+  isCacheValid,
+  shouldRefreshCache,
+  resetRefreshFlag,
+} from '../../lib/cache';
 
 export default function SearchScreen() {
   const { user } = useAuth();
@@ -43,6 +45,7 @@ export default function SearchScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [shareProperty, setShareProperty] = useState<Property | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
   
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -54,10 +57,10 @@ export default function SearchScreen() {
   const [maxPrice, setMaxPrice] = useState('');
   const [includeSold, setIncludeSold] = useState(false);
 
-  // Refresh on screen focus
+  // Load from cache first, then check if refresh needed
   useFocusEffect(
     useCallback(() => {
-      fetchProperties();
+      loadPropertiesWithCache();
     }, [includeSold])
   );
 
@@ -65,53 +68,104 @@ export default function SearchScreen() {
     applyFilters();
   }, [minPrice, maxPrice, selectedType, searchQuery, properties, propertyCategory, caseType, ageType]);
 
+  const loadPropertiesWithCache = async () => {
+    // First, try to load from cache for instant display
+    const cached = await getCachedProperties();
+    if (cached && cached.length > 0) {
+      setProperties(cached);
+      setLoading(false);
+      setInitialLoadDone(true);
+      
+      // Check if we need to refresh (new property added)
+      if (shouldRefreshCache()) {
+        fetchPropertiesInBackground();
+      }
+    } else {
+      // No cache, need to fetch
+      await fetchProperties();
+    }
+  };
+
+  const fetchPropertiesInBackground = async () => {
+    try {
+      const params = new URLSearchParams();
+      if (includeSold) params.append('include_sold', 'true');
+      const response = await api.get(`/properties?${params.toString()}`);
+      
+      const allProperties = response.data || [];
+      
+      // Update cache
+      await cacheProperties(allProperties);
+      resetRefreshFlag();
+      
+      // Update state
+      setProperties(allProperties);
+    } catch (error) {
+      console.error('Background fetch error:', error);
+    }
+  };
+
   const fetchProperties = async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
       if (includeSold) params.append('include_sold', 'true');
       const response = await api.get(`/properties?${params.toString()}`);
-      setProperties(response.data || []);
+      
+      const allProperties = response.data || [];
+      
+      // Cache for future use
+      await cacheProperties(allProperties);
+      resetRefreshFlag();
+      
+      setProperties(allProperties);
     } catch (error) {
       console.error('Error fetching properties:', error);
     } finally {
       setLoading(false);
+      setInitialLoadDone(true);
     }
   };
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchProperties();
-    setRefreshing(false);
+    try {
+      const params = new URLSearchParams();
+      if (includeSold) params.append('include_sold', 'true');
+      const response = await api.get(`/properties?${params.toString()}`);
+      
+      const allProperties = response.data || [];
+      await cacheProperties(allProperties);
+      resetRefreshFlag();
+      setProperties(allProperties);
+    } catch (error) {
+      console.error('Error refreshing properties:', error);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const applyFilters = () => {
     let filtered = [...properties];
 
-    // Filter by property category
     if (propertyCategory) {
       filtered = filtered.filter(p => p.propertyCategory === propertyCategory);
     }
 
-    // Filter by property type
     if (selectedType) {
       filtered = filtered.filter(p => p.propertyType === selectedType);
     }
 
-    // Filter by case type
     if (caseType) {
       filtered = filtered.filter(p => p.case === caseType);
     }
 
-    // Filter by age type
     if (ageType) {
       filtered = filtered.filter(p => p.ageType === ageType);
     }
 
-    // Filter by price range
     if (minPrice) {
       filtered = filtered.filter(p => {
-        // Check floors prices for multi-floor properties
         if (p.floors && p.floors.length > 0) {
           return p.floors.some(f => f.price >= parseFloat(minPrice));
         }
@@ -127,7 +181,6 @@ export default function SearchScreen() {
       });
     }
 
-    // Filter by search query
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(p => 
@@ -172,7 +225,8 @@ export default function SearchScreen() {
     return [...RESIDENTIAL_PROPERTY_TYPES, ...COMMERCIAL_PROPERTY_TYPES];
   };
 
-  if (loading) {
+  // Show loading only on first load
+  if (loading && !initialLoadDone) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#fff" />
@@ -217,7 +271,6 @@ export default function SearchScreen() {
             </TouchableOpacity>
           </TouchableOpacity>
 
-          {/* Clear Filters Button */}
           {hasActiveFilters && (
             <TouchableOpacity style={styles.clearButton} onPress={clearFilters}>
               <Ionicons name="close-circle" size={16} color="#ff4444" />
@@ -229,7 +282,6 @@ export default function SearchScreen() {
         {/* Expanded Filters */}
         {showFilters && (
           <View style={styles.filtersContainer}>
-            {/* Property Category */}
             <View style={styles.filterSection}>
               <Text style={styles.filterLabel}>Property Category</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -259,7 +311,6 @@ export default function SearchScreen() {
               </ScrollView>
             </View>
 
-            {/* Property Type */}
             <View style={styles.filterSection}>
               <Text style={styles.filterLabel}>Property Type</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -283,7 +334,6 @@ export default function SearchScreen() {
               </ScrollView>
             </View>
 
-            {/* Case Type */}
             <View style={styles.filterSection}>
               <Text style={styles.filterLabel}>Case Type</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -309,7 +359,6 @@ export default function SearchScreen() {
               </ScrollView>
             </View>
 
-            {/* Age Type */}
             <View style={styles.filterSection}>
               <Text style={styles.filterLabel}>Age Type</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -335,9 +384,8 @@ export default function SearchScreen() {
               </ScrollView>
             </View>
 
-            {/* Price Range */}
             <View style={styles.filterSection}>
-              <Text style={styles.filterLabel}>Price Range (Lakhs)</Text>
+              <Text style={styles.filterLabel}>Price Range (Cr)</Text>
               <View style={styles.priceContainer}>
                 <View style={styles.priceInput}>
                   <TextInput
@@ -346,7 +394,7 @@ export default function SearchScreen() {
                     placeholderTextColor="#666"
                     value={minPrice}
                     onChangeText={setMinPrice}
-                    keyboardType="numeric"
+                    keyboardType="decimal-pad"
                   />
                 </View>
                 <Text style={styles.priceSeparator}>-</Text>
@@ -357,13 +405,12 @@ export default function SearchScreen() {
                     placeholderTextColor="#666"
                     value={maxPrice}
                     onChangeText={setMaxPrice}
-                    keyboardType="numeric"
+                    keyboardType="decimal-pad"
                   />
                 </View>
               </View>
             </View>
 
-            {/* Include Sold */}
             <TouchableOpacity 
               style={styles.soldToggle}
               onPress={() => setIncludeSold(!includeSold)}
