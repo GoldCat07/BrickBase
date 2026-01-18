@@ -9,14 +9,11 @@ import {
   Dimensions,
   Modal,
   Alert,
-  Platform,
   Linking,
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Property, SIZE_UNITS } from '../types/property';
-import * as Sharing from 'expo-sharing';
-import * as FileSystem from 'expo-file-system';
 
 const { width, height } = Dimensions.get('window');
 const PHOTO_HEIGHT = height * 0.28;
@@ -35,9 +32,6 @@ interface FieldOption {
 }
 
 export default function WhatsAppShareModal({ visible, property, onClose }: WhatsAppShareModalProps) {
-  const [selectedPhotos, setSelectedPhotos] = useState<boolean[]>(
-    property.propertyPhotos?.map(() => true) || []
-  );
   const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
   const [sharing, setSharing] = useState(false);
   
@@ -148,16 +142,9 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
   
   useEffect(() => {
     if (visible) {
-      setSelectedPhotos(property.propertyPhotos?.map(() => true) || []);
       setFieldOptions(buildFieldOptions());
     }
   }, [visible, property, buildFieldOptions]);
-  
-  const togglePhoto = (index: number) => {
-    const newSelected = [...selectedPhotos];
-    newSelected[index] = !newSelected[index];
-    setSelectedPhotos(newSelected);
-  };
   
   const toggleField = (key: string) => {
     setFieldOptions(prev => 
@@ -165,10 +152,6 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
         field.key === key ? { ...field, selected: !field.selected } : field
       )
     );
-  };
-  
-  const handlePhotoPress = (index: number) => {
-    togglePhoto(index);
   };
   
   const handlePhotoLongPress = (photo: string) => {
@@ -186,94 +169,26 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
     return text;
   };
 
-  // Save base64 image to local file
-  const saveImageToFile = async (imageUri: string, index: number): Promise<string | null> => {
-    try {
-      const filename = `property_${Date.now()}_${index}.jpg`;
-      const localUri = `${FileSystem.cacheDirectory}${filename}`;
-      
-      if (imageUri.startsWith('data:image')) {
-        // Base64 image - extract and save
-        const base64Data = imageUri.split(',')[1];
-        await FileSystem.writeAsStringAsync(localUri, base64Data, {
-          encoding: 'base64', // Use string instead of enum
-        });
-        return localUri;
-      } else if (imageUri.startsWith('http')) {
-        // Remote URL - download
-        const result = await FileSystem.downloadAsync(imageUri, localUri);
-        return result.uri;
-      }
-      return imageUri;
-    } catch (error) {
-      console.error('Error saving image:', error);
-      return null;
-    }
-  };
-
+  // Simple and reliable - just open WhatsApp with text
   const shareToWhatsApp = async () => {
     try {
       setSharing(true);
       const shareText = generateShareText();
-      const selectedPhotoData = property.propertyPhotos?.filter((_, i) => selectedPhotos[i]) || [];
-      
-      // Check if sharing is available
-      const isAvailable = await Sharing.isAvailableAsync();
-      
-      if (selectedPhotoData.length > 0 && isAvailable) {
-        // Save first selected image to cache
-        const localUri = await saveImageToFile(selectedPhotoData[0], 0);
-        
-        if (localUri) {
-          // Open native share sheet with the image
-          // User can then select WhatsApp and add text as caption
-          await Sharing.shareAsync(localUri, {
-            mimeType: 'image/jpeg',
-            dialogTitle: shareText, // This shows in the share dialog on some platforms
-            UTI: 'public.jpeg', // iOS specific
-          });
-          onClose();
-          
-          // Clean up temp file after a delay
-          setTimeout(async () => {
-            try {
-              await FileSystem.deleteAsync(localUri, { idempotent: true });
-            } catch (e) {}
-          }, 5000);
-          return;
-        }
-      }
-      
-      // Fallback: No photos or sharing not available - open WhatsApp directly with text
       const encodedText = encodeURIComponent(shareText);
+      
+      // Try WhatsApp URL scheme
       const whatsappUrl = `whatsapp://send?text=${encodedText}`;
       
-      const canOpen = await Linking.canOpenURL(whatsappUrl);
-      if (canOpen) {
-        await Linking.openURL(whatsappUrl);
-      } else {
-        Alert.alert('WhatsApp not found', 'Please install WhatsApp to share.');
-      }
+      await Linking.openURL(whatsappUrl);
       onClose();
-      
-    } catch (error: any) {
-      console.error('Share error:', error);
-      
-      // Final fallback - try opening WhatsApp with just text
-      try {
-        const shareText = generateShareText();
-        const encodedText = encodeURIComponent(shareText);
-        await Linking.openURL(`whatsapp://send?text=${encodedText}`);
-        onClose();
-      } catch (e) {
-        Alert.alert('Error', 'Could not open WhatsApp. Please try again.');
-      }
+    } catch (error) {
+      console.error('WhatsApp error:', error);
+      Alert.alert('Error', 'Could not open WhatsApp. Please make sure WhatsApp is installed.');
     } finally {
       setSharing(false);
     }
   };
   
-  const selectedPhotosCount = selectedPhotos.filter(Boolean).length;
   const selectedFieldsCount = fieldOptions.filter(f => f.selected).length;
   
   return (
@@ -294,18 +209,16 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
         
         <View style={styles.summary}>
           <Text style={styles.summaryText}>
-            {selectedPhotosCount} photo(s) • {selectedFieldsCount} field(s) selected
-          </Text>
-          <Text style={styles.summaryHint}>
-            Image will open share sheet. Add text as caption in WhatsApp.
+            {selectedFieldsCount} field(s) selected
           </Text>
         </View>
         
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+          {/* Photos Preview (read-only, for reference) */}
           {property.propertyPhotos && property.propertyPhotos.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Photos (tap to select)</Text>
-              <Text style={styles.sectionSubtitle}>First selected photo will be shared</Text>
+              <Text style={styles.sectionTitle}>Photos</Text>
+              <Text style={styles.sectionSubtitle}>Long press to preview. Photos shared separately.</Text>
               <ScrollView 
                 horizontal 
                 showsHorizontalScrollIndicator={false}
@@ -314,32 +227,21 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
                 {property.propertyPhotos.map((photo, index) => (
                   <TouchableOpacity
                     key={index}
-                    style={[
-                      styles.photoContainer,
-                      selectedPhotos[index] && styles.photoSelected,
-                    ]}
-                    onPress={() => handlePhotoPress(index)}
+                    style={styles.photoContainer}
                     onLongPress={() => handlePhotoLongPress(photo)}
                     delayLongPress={500}
                   >
                     <Image source={{ uri: photo }} style={styles.photo} />
-                    {selectedPhotos[index] && (
-                      <View style={styles.photoCheckmark}>
-                        <Ionicons name="checkmark-circle" size={28} color="#4CAF50" />
-                      </View>
-                    )}
-                    {!selectedPhotos[index] && (
-                      <View style={styles.photoOverlay} />
-                    )}
                   </TouchableOpacity>
                 ))}
               </ScrollView>
-              <Text style={styles.photoHint}>Long press to preview full size</Text>
             </View>
           )}
           
+          {/* Property Details Selection */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Property Details</Text>
+            <Text style={styles.sectionSubtitle}>Tap to include/exclude from message</Text>
             {fieldOptions.map((field) => (
               <TouchableOpacity
                 key={field.key}
@@ -365,6 +267,7 @@ export default function WhatsAppShareModal({ visible, property, onClose }: Whats
           <View style={{ height: 100 }} />
         </ScrollView>
         
+        {/* Share Button */}
         <TouchableOpacity 
           style={[styles.shareButton, sharing && styles.shareButtonDisabled]} 
           onPress={shareToWhatsApp}
@@ -444,11 +347,6 @@ const styles = StyleSheet.create({
     color: '#999',
     fontSize: 14,
   },
-  summaryHint: {
-    color: '#666',
-    fontSize: 12,
-    marginTop: 4,
-  },
   scrollView: {
     flex: 1,
   },
@@ -471,37 +369,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   photoContainer: {
-    width: width * 0.6,
+    width: width * 0.5,
     height: PHOTO_HEIGHT,
     marginRight: 12,
     borderRadius: 12,
     overflow: 'hidden',
-    borderWidth: 3,
-    borderColor: 'transparent',
-  },
-  photoSelected: {
-    borderColor: '#4CAF50',
+    borderWidth: 2,
+    borderColor: '#333',
   },
   photo: {
     width: '100%',
     height: '100%',
     backgroundColor: '#333',
-  },
-  photoCheckmark: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    backgroundColor: '#fff',
-    borderRadius: 14,
-  },
-  photoOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  photoHint: {
-    color: '#666',
-    fontSize: 12,
-    marginTop: 8,
   },
   fieldItem: {
     flexDirection: 'row',
