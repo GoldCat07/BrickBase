@@ -254,15 +254,79 @@ export default function MapScreen() {
     );
   }
 
-  // Web fallback - show message
+  // Web fallback - show message instead of map
   if (Platform.OS === 'web') {
-    return <WebMapFallback count={filteredProperties.length} />;
+    return (
+      <View style={styles.container}>
+        <View style={[styles.searchOverlay, { top: insets.top + 8 }]}>
+          <View style={styles.searchBar}>
+            <Ionicons name="search" size={20} color="#666" />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search properties..."
+              placeholderTextColor="#666"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+          </View>
+        </View>
+        
+        <ScrollView style={{ flex: 1, marginTop: 80 }} contentContainerStyle={{ padding: 16, paddingBottom: 100 }}>
+          <View style={styles.webFallback}>
+            <Ionicons name="map" size={64} color="#666" />
+            <Text style={styles.webFallbackTitle}>Map View</Text>
+            <Text style={styles.webFallbackText}>
+              Open on Expo Go app for interactive map
+            </Text>
+          </View>
+          
+          <Text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold', marginTop: 24, marginBottom: 16 }}>
+            Properties with Location ({filteredProperties.length})
+          </Text>
+          
+          {filteredProperties.map((property) => (
+            <TouchableOpacity 
+              key={property.id}
+              style={styles.propertyCard}
+              onPress={() => handlePropertyPress(property)}
+            >
+              {property.propertyPhotos?.[0] && (
+                <Image source={{ uri: property.propertyPhotos[0] }} style={styles.cardImage} />
+              )}
+              <View style={styles.cardContent}>
+                <Text style={styles.cardType}>{property.propertyType}</Text>
+                <Text style={styles.cardPrice}>{formatPrice(property)}</Text>
+                {property.address?.sector && (
+                  <Text style={styles.cardAddress}>
+                    {property.address.sector}
+                    {property.address.city ? `, ${property.address.city}` : ''}
+                  </Text>
+                )}
+              </View>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+    );
   }
 
-  // Native - render actual map
-  // Import map components dynamically for native only
-  const MapView = require('react-native-maps').default;
-  const { Marker, PROVIDER_GOOGLE } = require('react-native-maps');
+  // Native only - map components
+  let MapView: any = null;
+  let Marker: any = null;
+  let PROVIDER_GOOGLE: any = null;
+  
+  try {
+    const Maps = require('react-native-maps');
+    MapView = Maps.default;
+    Marker = Maps.Marker;
+    PROVIDER_GOOGLE = Maps.PROVIDER_GOOGLE;
+  } catch (e) {
+    return <WebMapFallback count={filteredProperties.length} />;
+  }
+  
+  if (!MapView) {
+    return <WebMapFallback count={filteredProperties.length} />;
+  }
 
   return (
     <View style={styles.container}>
