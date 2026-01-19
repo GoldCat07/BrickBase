@@ -175,9 +175,9 @@ Edit `/app/frontend/.env` and add your Supabase credentials:
 
 ```env
 # Existing variables (DO NOT MODIFY)
-EXPO_TUNNEL_SUBDOMAIN=realtor-enhance
-EXPO_PACKAGER_HOSTNAME=https://realtor-enhance.preview.emergentagent.com
-EXPO_PUBLIC_BACKEND_URL=https://realtor-enhance.preview.emergentagent.com
+EXPO_TUNNEL_SUBDOMAIN=signup-revamp-4
+EXPO_PACKAGER_HOSTNAME=https://signup-revamp-4.preview.emergentagent.com
+EXPO_PUBLIC_BACKEND_URL=https://signup-revamp-4.preview.emergentagent.com
 EXPO_USE_FAST_RESOLVER="1"
 METRO_CACHE_ROOT=/app/frontend/.metro-cache
 
