@@ -1759,7 +1759,22 @@ async def get_all_pricing():
         cursor = db.pricing.find({})
         pricing_list = await cursor.to_list(length=100)
         
-        return {"pricing": pricing_list}
+        # Remove MongoDB _id and convert to serializable format
+        result = []
+        for p in pricing_list:
+            result.append({
+                "id": p.get("id", str(p.get("_id", ""))),
+                "city": p.get("city"),
+                "pro_owner_monthly": p.get("pro_owner_monthly"),
+                "pro_owner_annual": p.get("pro_owner_annual"),
+                "employee_tier_1": p.get("employee_tier_1"),
+                "employee_tier_2": p.get("employee_tier_2"),
+                "employee_tier_3": p.get("employee_tier_3"),
+                "created_at": p.get("created_at"),
+                "updated_at": p.get("updated_at"),
+            })
+        
+        return {"pricing": result}
         
     except Exception as e:
         logger.error(f"Error getting pricing: {str(e)}")
