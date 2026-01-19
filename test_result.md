@@ -101,3 +101,238 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: |
+  Revamp real estate app with:
+  - Mobile OTP-based authentication (000000 for testing)
+  - Location permission for city auto-fill
+  - Sign-up form: Name, Firm Name, City of Operations, Email
+  - Organization system with Pro subscription
+  - Employee seats with tiered pricing
+  - Mock payment system (ready for Razorpay)
+  - City-wise pricing controls
+  - Admin dashboard endpoints
+
+backend:
+  - task: "Mobile OTP Authentication - Send OTP"
+    implemented: true
+    working: true
+    file: "server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "POST /api/auth/send-otp - Sends OTP (000000 for testing), stores in DB with expiry"
+
+  - task: "Mobile OTP Authentication - Verify OTP"
+    implemented: true
+    working: true
+    file: "server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "POST /api/auth/verify-otp - Verifies OTP, returns if new/existing user, issues JWT for existing"
+
+  - task: "User Signup"
+    implemented: true
+    working: true
+    file: "server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "POST /api/auth/signup - Creates user with mobile, name, firm_name, city, email. Supports invite_code"
+
+  - task: "Pricing API"
+    implemented: true
+    working: true
+    file: "server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "GET /api/pricing - Returns city-specific pricing for pro owner and employee tiers"
+
+  - task: "Subscription Creation (Mock)"
+    implemented: true
+    working: true
+    file: "server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "POST /api/subscription/create - Creates mock subscription, updates user to Pro"
+
+  - task: "Organization Management"
+    implemented: true
+    working: true
+    file: "server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "POST/GET /api/organization - Create org with invite code, get org details with member count"
+
+  - task: "Organization Members"
+    implemented: true
+    working: true
+    file: "server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "GET/DELETE /api/organization/members - List members, remove member (owner only)"
+
+  - task: "Admin - Get All Users"
+    implemented: true
+    working: true
+    file: "server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "GET /api/admin/users - Returns all owners with subscription status, filtering by city"
+
+  - task: "Admin - City Pricing Management"
+    implemented: true
+    working: true
+    file: "server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "GET/PUT /api/admin/pricing - Get all city pricing, update city pricing"
+
+frontend:
+  - task: "Mobile OTP Login Screen"
+    implemented: true
+    working: true
+    file: "app/login.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Three-step login: mobile input, OTP verification, signup form with location auto-fill"
+
+  - task: "Signup Form with Location"
+    implemented: true
+    working: true
+    file: "app/login.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Form with Name, Firm Name, City (auto-filled from location), Email"
+
+  - task: "Profile Screen"
+    implemented: true
+    working: true
+    file: "app/(tabs)/profile.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Shows user info, Pro badge, links to Subscription and Organization screens"
+
+  - task: "Organization Screen"
+    implemented: true
+    working: true
+    file: "app/organization.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Shows org setup for owners, member list, invite code sharing, remove member"
+
+  - task: "Subscription Screen"
+    implemented: true
+    working: true
+    file: "app/subscription.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Monthly/Annual plan selection, employee seats selection, pricing tiers display, mock payment"
+
+  - task: "Payment Required Modal"
+    implemented: true
+    working: true
+    file: "components/PaymentRequiredModal.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Blocking modal for payment failure, redirects to subscription screen"
+
+  - task: "Welcome/Congratulations Screen"
+    implemented: true
+    working: true
+    file: "app/welcome.tsx"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Confetti animation, org name display for employees joining via invite"
+
+metadata:
+  created_by: "main_agent"
+  version: "1.0"
+  test_sequence: 1
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "Mobile OTP Authentication Flow"
+    - "Subscription Creation"
+    - "Organization Management"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: |
+      Implemented complete mobile auth revamp:
+      1. Mobile OTP login (000000 for testing)
+      2. Location permission for city auto-fill
+      3. Signup form: Name, Firm Name, City, Email
+      4. Organization system with invite codes
+      5. Subscription with tiered employee pricing
+      6. City-wise pricing (9 cities + other + international)
+      7. Admin endpoints for user/pricing management
+      
+      All backend APIs tested via curl - working correctly.
+      Frontend screens created and rendering properly.
