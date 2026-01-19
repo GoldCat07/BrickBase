@@ -33,22 +33,6 @@ import {
 
 const { width, height } = Dimensions.get('window');
 
-// Web fallback component
-function WebMapFallback({ count }: { count: number }) {
-  return (
-    <View style={styles.webFallback}>
-      <Ionicons name="map" size={64} color="#666" />
-      <Text style={styles.webFallbackTitle}>Map View</Text>
-      <Text style={styles.webFallbackText}>
-        Please open this app on your mobile device using Expo Go to view the interactive map.
-      </Text>
-      <Text style={styles.webFallbackCount}>
-        {count} properties with location data
-      </Text>
-    </View>
-  );
-}
-
 export default function MapScreen() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
@@ -174,15 +158,6 @@ export default function MapScreen() {
     setFilteredProperties(filtered);
   };
 
-  const clearFilters = () => {
-    setSearchQuery('');
-    setPropertyCategory('');
-    setSelectedType('');
-    setIncludeSold(false);
-  };
-
-  const hasActiveFilters = !!(searchQuery || propertyCategory || selectedType || includeSold);
-
   const formatPrice = (property: Property) => {
     if (property.floors && property.floors.length > 0) {
       const minPrice = Math.min(...property.floors.map(f => f.price));
@@ -211,90 +186,84 @@ export default function MapScreen() {
     });
   };
 
-  const getPropertyTypes = (): PropertyType[] => {
-    if (propertyCategory === 'Residential') {
-      return RESIDENTIAL_PROPERTY_TYPES;
-    } else if (propertyCategory === 'Commercial') {
-      return COMMERCIAL_PROPERTY_TYPES;
-    }
-    return [...RESIDENTIAL_PROPERTY_TYPES, ...COMMERCIAL_PROPERTY_TYPES];
-  };
-
-  const getInitialRegion = () => {
-    if (userLocation) {
-      return {
-        latitude: userLocation.latitude,
-        longitude: userLocation.longitude,
-        latitudeDelta: 0.05,
-        longitudeDelta: 0.05,
-      };
-    }
-    if (filteredProperties.length > 0 && filteredProperties[0].latitude) {
-      return {
-        latitude: filteredProperties[0].latitude,
-        longitude: filteredProperties[0].longitude!,
-        latitudeDelta: 0.05,
-        longitudeDelta: 0.05,
-      };
-    }
-    return {
-      latitude: 28.6139,
-      longitude: 77.209,
-      latitudeDelta: 0.1,
-      longitudeDelta: 0.1,
-    };
-  };
-
   if (loading && !initialLoadDone) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#fff" />
-        <Text style={styles.loadingText}>Loading map...</Text>
+        <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
   }
 
-  // Web fallback - show message instead of map
-  if (Platform.OS === 'web') {
-    return (
-      <View style={styles.container}>
-        <View style={[styles.searchOverlay, { top: insets.top + 8 }]}>
-          <View style={styles.searchBar}>
-            <Ionicons name="search" size={20} color="#666" />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search properties..."
-              placeholderTextColor="#666"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-          </View>
+  // Web and native share the same list view for now
+  // Native map support requires development build
+  return (
+    <View style={styles.container}>
+      <View style={[styles.searchOverlay, { top: insets.top + 8 }]}>
+        <View style={styles.searchBar}>
+          <Ionicons name="search" size={20} color="#666" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search properties..."
+            placeholderTextColor="#666"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <Ionicons name="close-circle" size={20} color="#666" />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+      
+      <ScrollView 
+        style={{ flex: 1, marginTop: insets.top + 60 }} 
+        contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 100 }}
+      >
+        <View style={styles.webFallback}>
+          <Ionicons name="map" size={48} color="#4CAF50" />
+          <Text style={styles.webFallbackTitle}>Location View</Text>
+          <Text style={styles.webFallbackText}>
+            {Platform.OS === 'web' 
+              ? 'Open on Expo Go for interactive map'
+              : 'Properties with location data'}
+          </Text>
         </View>
         
-        <ScrollView style={{ flex: 1, marginTop: 80 }} contentContainerStyle={{ padding: 16, paddingBottom: 100 }}>
-          <View style={styles.webFallback}>
-            <Ionicons name="map" size={64} color="#666" />
-            <Text style={styles.webFallbackTitle}>Map View</Text>
-            <Text style={styles.webFallbackText}>
-              Open on Expo Go app for interactive map
-            </Text>
+        <Text style={styles.sectionTitle}>
+          Properties ({filteredProperties.length})
+        </Text>
+        
+        {filteredProperties.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="location-outline" size={48} color="#666" />
+            <Text style={styles.emptyText}>No properties with location data</Text>
+            <Text style={styles.emptySubtext}>Add location when creating properties</Text>
           </View>
-          
-          <Text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold', marginTop: 24, marginBottom: 16 }}>
-            Properties with Location ({filteredProperties.length})
-          </Text>
-          
-          {filteredProperties.map((property) => (
+        ) : (
+          filteredProperties.map((property) => (
             <TouchableOpacity 
               key={property.id}
               style={styles.propertyCard}
               onPress={() => handlePropertyPress(property)}
             >
-              {property.propertyPhotos?.[0] && (
+              {property.propertyPhotos?.[0] ? (
                 <Image source={{ uri: property.propertyPhotos[0] }} style={styles.cardImage} />
+              ) : (
+                <View style={[styles.cardImage, styles.placeholderImage]}>
+                  <Ionicons name="home" size={32} color="#666" />
+                </View>
               )}
               <View style={styles.cardContent}>
-                <Text style={styles.cardType}>{property.propertyType}</Text>
+                <View style={styles.cardHeader}>
+                  <Text style={styles.cardType}>{property.propertyType || 'Property'}</Text>
+                  {property.isSold && (
+                    <View style={styles.soldBadge}>
+                      <Text style={styles.soldBadgeText}>SOLD</Text>
+                    </View>
+                  )}
+                </View>
                 <Text style={styles.cardPrice}>{formatPrice(property)}</Text>
                 {property.address?.sector && (
                   <Text style={styles.cardAddress}>
@@ -302,253 +271,162 @@ export default function MapScreen() {
                     {property.address.city ? `, ${property.address.city}` : ''}
                   </Text>
                 )}
+                <View style={styles.locationRow}>
+                  <Ionicons name="location" size={12} color="#4CAF50" />
+                  <Text style={styles.locationText}>
+                    {property.latitude?.toFixed(4)}, {property.longitude?.toFixed(4)}
+                  </Text>
+                </View>
               </View>
+              <Ionicons name="chevron-forward" size={20} color="#666" style={{ alignSelf: 'center' }} />
             </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
-    );
-  }
-
-  // Native only - map components
-  let MapView: any = null;
-  let Marker: any = null;
-  let PROVIDER_GOOGLE: any = null;
-  
-  try {
-    const Maps = require('react-native-maps');
-    MapView = Maps.default;
-    Marker = Maps.Marker;
-    PROVIDER_GOOGLE = Maps.PROVIDER_GOOGLE;
-  } catch (e) {
-    return <WebMapFallback count={filteredProperties.length} />;
-  }
-  
-  if (!MapView) {
-    return <WebMapFallback count={filteredProperties.length} />;
-  }
-
-  return (
-    <View style={styles.container}>
-      <MapView
-        style={styles.map}
-        provider={PROVIDER_GOOGLE}
-        initialRegion={getInitialRegion()}
-        showsUserLocation={true}
-        showsMyLocationButton={false}
-        showsCompass={true}
-        mapType="standard"
-      >
-        {filteredProperties.map((property) => (
-          <Marker
-            key={property.id}
-            coordinate={{
-              latitude: property.latitude!,
-              longitude: property.longitude!,
-            }}
-            onPress={() => setSelectedProperty(property)}
-          >
-            <View style={[styles.markerContainer, property.isSold && styles.markerSold]}>
-              <Text style={[styles.markerPrice, property.isSold && styles.markerPriceSold]}>
-                {formatPrice(property)}
-              </Text>
-            </View>
-          </Marker>
-        ))}
-      </MapView>
-
-      {/* Floating Search & Filters */}
-      <View style={[styles.searchOverlay, { top: insets.top + 8 }]}>
-        <TouchableOpacity 
-          style={styles.searchBar}
-          onPress={() => setShowFilters(!showFilters)}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="search" size={20} color="#666" />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search on map..."
-            placeholderTextColor="#666"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            onFocus={() => setShowFilters(true)}
-          />
-          <TouchableOpacity onPress={() => setShowFilters(!showFilters)}>
-            <Ionicons 
-              name={showFilters ? "chevron-up" : "options-outline"} 
-              size={22} 
-              color="#fff" 
-            />
-          </TouchableOpacity>
-        </TouchableOpacity>
-
-        {hasActiveFilters && (
-          <TouchableOpacity style={styles.clearButton} onPress={clearFilters}>
-            <Ionicons name="close-circle" size={14} color="#ff4444" />
-            <Text style={styles.clearButtonText}>Clear</Text>
-          </TouchableOpacity>
+          ))
         )}
-      </View>
-
-      {/* Expanded Filters */}
-      {showFilters && (
-        <View style={[styles.filtersOverlay, { top: insets.top + 70 }]}>
-          <ScrollView style={styles.filtersScroll} showsVerticalScrollIndicator={false}>
-            <View style={styles.filterSection}>
-              <Text style={styles.filterLabel}>Category</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View style={styles.chipContainer}>
-                  <TouchableOpacity
-                    style={[styles.chip, !propertyCategory && styles.chipSelected]}
-                    onPress={() => { setPropertyCategory(''); setSelectedType(''); }}
-                  >
-                    <Text style={[styles.chipText, !propertyCategory && styles.chipTextSelected]}>All</Text>
-                  </TouchableOpacity>
-                  {(['Residential', 'Commercial'] as PropertyCategory[]).map((cat) => (
-                    <TouchableOpacity
-                      key={cat}
-                      style={[styles.chip, propertyCategory === cat && styles.chipSelected]}
-                      onPress={() => { setPropertyCategory(cat); setSelectedType(''); }}
-                    >
-                      <Text style={[styles.chipText, propertyCategory === cat && styles.chipTextSelected]}>{cat}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </ScrollView>
-            </View>
-
-            <View style={styles.filterSection}>
-              <Text style={styles.filterLabel}>Type</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View style={styles.chipContainer}>
-                  <TouchableOpacity
-                    style={[styles.chip, !selectedType && styles.chipSelected]}
-                    onPress={() => setSelectedType('')}
-                  >
-                    <Text style={[styles.chipText, !selectedType && styles.chipTextSelected]}>All</Text>
-                  </TouchableOpacity>
-                  {getPropertyTypes().map((type) => (
-                    <TouchableOpacity
-                      key={type}
-                      style={[styles.chip, selectedType === type && styles.chipSelected]}
-                      onPress={() => setSelectedType(type)}
-                    >
-                      <Text style={[styles.chipText, selectedType === type && styles.chipTextSelected]}>{type}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </ScrollView>
-            </View>
-
-            <TouchableOpacity style={styles.soldToggle} onPress={() => setIncludeSold(!includeSold)}>
-              <Ionicons name={includeSold ? 'checkbox' : 'square-outline'} size={20} color="#fff" />
-              <Text style={styles.soldToggleText}>Show Sold</Text>
-            </TouchableOpacity>
-          </ScrollView>
-        </View>
-      )}
-
-      {/* My Location Button */}
-      <TouchableOpacity 
-        style={[styles.myLocationButton, { bottom: insets.bottom + 180 }]}
-        onPress={() => {
-          if (userLocation) {
-            // Would need a ref to mapRef to animate - keeping simple for now
-          }
-        }}
-      >
-        <Ionicons name="locate" size={24} color="#fff" />
-      </TouchableOpacity>
-
-      {/* Property Count */}
-      <View style={[styles.propertyCountBadge, { bottom: insets.bottom + 130 }]}>
-        <Text style={styles.propertyCountText}>{filteredProperties.length} properties</Text>
-      </View>
-
-      {/* Selected Property Card */}
-      {selectedProperty && (
-        <TouchableOpacity 
-          style={[styles.propertyCard, { bottom: insets.bottom + 20 }]}
-          onPress={() => handlePropertyPress(selectedProperty)}
-          activeOpacity={0.9}
-        >
-          <TouchableOpacity style={styles.cardClose} onPress={() => setSelectedProperty(null)}>
-            <Ionicons name="close" size={20} color="#fff" />
-          </TouchableOpacity>
-          
-          {selectedProperty.propertyPhotos?.[0] && (
-            <Image source={{ uri: selectedProperty.propertyPhotos[0] }} style={styles.cardImage} />
-          )}
-          
-          <View style={styles.cardContent}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.cardType}>{selectedProperty.propertyType}</Text>
-              {selectedProperty.isSold && (
-                <View style={styles.soldBadge}>
-                  <Text style={styles.soldBadgeText}>SOLD</Text>
-                </View>
-              )}
-            </View>
-            <Text style={styles.cardPrice}>{formatPrice(selectedProperty)}</Text>
-            {selectedProperty.address?.sector && (
-              <Text style={styles.cardAddress}>
-                {selectedProperty.address.sector}
-                {selectedProperty.address.city ? `, ${selectedProperty.address.city}` : ''}
-              </Text>
-            )}
-            <View style={styles.cardFooter}>
-              <Text style={styles.cardViewMore}>Tap to view details</Text>
-              <Ionicons name="chevron-forward" size={16} color="#4CAF50" />
-            </View>
-          </View>
-        </TouchableOpacity>
-      )}
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0c0c0c' },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0c0c0c' },
-  loadingText: { color: '#fff', marginTop: 12, fontSize: 16 },
-  webFallback: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0c0c0c', padding: 32 },
-  webFallbackTitle: { color: '#fff', fontSize: 24, fontWeight: 'bold', marginTop: 16 },
-  webFallbackText: { color: '#999', fontSize: 16, textAlign: 'center', marginTop: 12, lineHeight: 24 },
-  webFallbackCount: { color: '#4CAF50', fontSize: 14, marginTop: 24 },
-  map: { flex: 1 },
-  markerContainer: { backgroundColor: '#fff', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16, borderWidth: 2, borderColor: '#4CAF50', elevation: 5 },
-  markerSold: { backgroundColor: '#ff4444', borderColor: '#ff4444' },
-  markerPrice: { color: '#000', fontSize: 12, fontWeight: 'bold' },
-  markerPriceSold: { color: '#fff' },
-  searchOverlay: { position: 'absolute', left: 16, right: 16, zIndex: 1 },
-  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1a1a1a', borderRadius: 12, padding: 12, gap: 10, borderWidth: 1, borderColor: '#333' },
-  searchInput: { flex: 1, color: '#fff', fontSize: 16 },
-  clearButton: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', padding: 6, marginTop: 4, backgroundColor: 'rgba(26, 26, 26, 0.9)', borderRadius: 12 },
-  clearButtonText: { color: '#ff4444', fontSize: 12 },
-  filtersOverlay: { position: 'absolute', left: 16, right: 16, backgroundColor: 'rgba(26, 26, 26, 0.95)', borderRadius: 12, padding: 12, maxHeight: 200, zIndex: 1 },
-  filtersScroll: { maxHeight: 180 },
-  filterSection: { marginBottom: 12 },
-  filterLabel: { color: '#999', fontSize: 11, marginBottom: 6, fontWeight: '600' },
-  chipContainer: { flexDirection: 'row', gap: 6 },
-  chip: { backgroundColor: '#2a2a2a', borderWidth: 1, borderColor: '#444', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
-  chipSelected: { backgroundColor: '#fff', borderColor: '#fff' },
-  chipText: { color: '#fff', fontSize: 12 },
-  chipTextSelected: { color: '#000', fontWeight: '600' },
-  soldToggle: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
-  soldToggleText: { color: '#fff', fontSize: 12 },
-  myLocationButton: { position: 'absolute', right: 16, backgroundColor: '#1a1a1a', width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#333', elevation: 5 },
-  propertyCountBadge: { position: 'absolute', right: 16, backgroundColor: 'rgba(26, 26, 26, 0.9)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: '#333' },
-  propertyCountText: { color: '#fff', fontSize: 12 },
-  propertyCard: { position: 'absolute', left: 16, right: 16, backgroundColor: '#1a1a1a', borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: '#333', flexDirection: 'row', elevation: 10 },
-  cardClose: { position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0, 0, 0, 0.6)', borderRadius: 12, padding: 4, zIndex: 1 },
-  cardImage: { width: 120, height: 110, backgroundColor: '#333' },
-  cardContent: { flex: 1, padding: 12 },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  cardType: { color: '#999', fontSize: 12 },
-  soldBadge: { backgroundColor: '#ff4444', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  soldBadgeText: { color: '#fff', fontSize: 10, fontWeight: 'bold' },
-  cardPrice: { color: '#fff', fontSize: 20, fontWeight: 'bold', marginTop: 4 },
-  cardAddress: { color: '#666', fontSize: 12, marginTop: 4 },
-  cardFooter: { flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 4 },
-  cardViewMore: { color: '#4CAF50', fontSize: 12 },
+  container: { 
+    flex: 1, 
+    backgroundColor: '#0c0c0c' 
+  },
+  loadingContainer: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    backgroundColor: '#0c0c0c' 
+  },
+  loadingText: { 
+    color: '#fff', 
+    marginTop: 12, 
+    fontSize: 16 
+  },
+  searchOverlay: { 
+    position: 'absolute', 
+    left: 16, 
+    right: 16, 
+    zIndex: 1 
+  },
+  searchBar: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    backgroundColor: '#1a1a1a', 
+    borderRadius: 12, 
+    padding: 12, 
+    gap: 10, 
+    borderWidth: 1, 
+    borderColor: '#333' 
+  },
+  searchInput: { 
+    flex: 1, 
+    color: '#fff', 
+    fontSize: 16 
+  },
+  webFallback: { 
+    alignItems: 'center', 
+    backgroundColor: '#1a1a1a', 
+    borderRadius: 16, 
+    padding: 24,
+    marginBottom: 24,
+  },
+  webFallbackTitle: { 
+    color: '#fff', 
+    fontSize: 20, 
+    fontWeight: 'bold', 
+    marginTop: 12 
+  },
+  webFallbackText: { 
+    color: '#999', 
+    fontSize: 14, 
+    textAlign: 'center', 
+    marginTop: 8,
+  },
+  sectionTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 16,
+  },
+  emptyState: {
+    alignItems: 'center',
+    padding: 32,
+  },
+  emptyText: {
+    color: '#fff',
+    fontSize: 16,
+    marginTop: 16,
+  },
+  emptySubtext: {
+    color: '#666',
+    fontSize: 14,
+    marginTop: 8,
+  },
+  propertyCard: { 
+    backgroundColor: '#1a1a1a', 
+    borderRadius: 16, 
+    overflow: 'hidden', 
+    borderWidth: 1, 
+    borderColor: '#333', 
+    flexDirection: 'row', 
+    marginBottom: 12,
+    padding: 12,
+  },
+  cardImage: { 
+    width: 80, 
+    height: 80, 
+    borderRadius: 12,
+    backgroundColor: '#333' 
+  },
+  placeholderImage: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cardContent: { 
+    flex: 1, 
+    paddingHorizontal: 12,
+    justifyContent: 'center',
+  },
+  cardHeader: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 8 
+  },
+  cardType: { 
+    color: '#999', 
+    fontSize: 12 
+  },
+  soldBadge: { 
+    backgroundColor: '#ff4444', 
+    paddingHorizontal: 6, 
+    paddingVertical: 2, 
+    borderRadius: 4 
+  },
+  soldBadgeText: { 
+    color: '#fff', 
+    fontSize: 10, 
+    fontWeight: 'bold' 
+  },
+  cardPrice: { 
+    color: '#fff', 
+    fontSize: 18, 
+    fontWeight: 'bold', 
+    marginTop: 4 
+  },
+  cardAddress: { 
+    color: '#666', 
+    fontSize: 12, 
+    marginTop: 4 
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+  },
+  locationText: {
+    color: '#4CAF50',
+    fontSize: 11,
+  },
 });
