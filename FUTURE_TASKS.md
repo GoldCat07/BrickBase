@@ -5,165 +5,192 @@ This document contains tasks and context for future development sessions. Read t
 
 ---
 
-## 🔴 HIGH PRIORITY - Migration to Supabase
+## 🔴 COMPLETED - Mobile Auth & Organization System
 
-### 1. Authentication Migration
-**Current State:** JWT-based custom auth with MongoDB
-**Target:** Supabase Authentication
+### ✅ Mobile OTP Authentication
+- Sign-up flow with mobile number
+- OTP verification (000000 for testing)
+- Location permission for city auto-fill
+- Sign-up form: Name, Firm Name, City, Email
 
-**Tasks:**
-- [ ] Set up Supabase project
-- [ ] Configure Supabase Auth providers (email/password, Google OAuth if needed)
-- [ ] Replace JWT authentication in backend with Supabase Auth
-- [ ] Update AuthContext in frontend to use Supabase client
-- [ ] Migrate existing users (if any) to Supabase Auth
+### ✅ Organization System
+- Pro subscription for owners (₹3599/month or ₹35990/year)
+- Employee seat pricing tiers (1-7, 8-14, 15+)
+- Organization creation flow
+- Invite code generation
+- Employee joining with congratulations animation
+- Member list with remove functionality (owner only)
 
-**Files to modify:**
-- `/app/backend/server.py` - Remove custom auth endpoints, use Supabase verification
-- `/app/frontend/contexts/AuthContext.tsx` - Use Supabase client for auth
-- `/app/frontend/app/login.tsx` - Update login/signup flow
+### ✅ Subscription System (Mock Payment)
+- Mock payment flow UI ready
+- Monthly and annual plans
+- Employee seats selection
+- Pricing displayed per city
 
-### 2. Database Migration
-**Current State:** MongoDB (Motor async client)
-**Target:** Supabase PostgreSQL
-
-**Tasks:**
-- [ ] Design PostgreSQL schema based on current MongoDB collections:
-  - `users` table
-  - `properties` table (with JSONB for flexible fields like floors, sizes, address)
-  - `builders` table
-- [ ] Create Supabase tables with proper RLS (Row Level Security)
-- [ ] Update backend API endpoints to use Supabase client instead of Motor
-- [ ] Migrate existing data if needed
-
-**Database Schema Notes:**
-```sql
--- Properties table structure
-CREATE TABLE properties (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID REFERENCES auth.users(id),
-  property_category TEXT,
-  property_type TEXT,
-  property_photos TEXT[], -- Array of base64 strings
-  floors JSONB, -- Array of floor entries
-  price DECIMAL,
-  price_unit TEXT,
-  builders JSONB,
-  address JSONB,
-  sizes JSONB,
-  possession_month INT,
-  possession_year INT,
-  important_files JSONB,
-  payment_plan TEXT,
-  additional_notes TEXT,
-  club_property BOOLEAN DEFAULT FALSE,
-  pool_property BOOLEAN DEFAULT FALSE,
-  park_property BOOLEAN DEFAULT FALSE,
-  gated_property BOOLEAN DEFAULT FALSE,
-  property_age INT,
-  age_type TEXT,
-  case_type TEXT,
-  latitude DECIMAL,
-  longitude DECIMAL,
-  is_sold BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-```
-
-### 3. File Storage Migration
-**Current State:** Important files stored as base64 in database
-**Target:** Supabase Storage
-
-**Tasks:**
-- [ ] Create Supabase Storage buckets:
-  - `property-photos` - for property images
-  - `property-files` - for PDFs and documents
-- [ ] Update photo upload to store in Supabase Storage, save URL in DB
-- [ ] Update file upload to store in Supabase Storage
-- [ ] Create signed URLs for private file access
-- [ ] Migrate existing base64 images to Storage (optional)
-
-**Notes:**
-- Property photos are currently base64 encoded for mobile display
-- For Supabase Storage, you can either:
-  1. Continue storing base64 for offline support
-  2. Store in Supabase Storage with URLs (reduces DB size but needs network)
+### ✅ City-based Pricing
+Cities configured:
+1. Faridabad
+2. Gurugram
+3. Noida
+4. Delhi (Premium: 1.2x)
+5. Mumbai (Premium: 1.2x)
+6. Pune
+7. Bangalore (Premium: 1.2x)
+8. Hyderabad
+9. Ahmedabad
+10. Other cities (default pricing)
+11. International (2x pricing for outside India)
 
 ---
 
-## 🟡 MEDIUM PRIORITY - Feature Enhancements
+## 🔴 HIGH PRIORITY - Pending Tasks
 
-### 4. Google Maps Integration (Mobile)
-**Current State:** react-native-maps installed, native maps for Expo Go
-**Status:** ✅ Implemented for native (shows list on web)
-
-**Google Maps API Key:** `AIzaSyC46BsGdP0YtuAuxdlgP8rTni1vwmy4oDA`
-
-**What's working:**
-- Native: Full Google Maps with property markers
-- Property card popup like Airbnb/MMT on marker tap
-- User location tracking
-- Filters overlay on map
-- Web: List fallback with coordinates
-
-### 5. Image Sharing Enhancement
-**Current State:** Share text with photo count notation
-**Target:** Share actual images with text
+### 1. Razorpay Integration
+**Current State:** Mock payments
+**Target:** Real Razorpay subscription payments
 
 **Tasks:**
-- [ ] Implement proper image sharing using expo-sharing
-- [ ] Handle multiple image selection for WhatsApp
-- [ ] Test on iOS and Android
+- [ ] Get Razorpay API keys (Key ID & Key Secret)
+- [ ] Install Razorpay SDK
+- [ ] Create subscription plans in Razorpay dashboard
+- [ ] Set up webhooks for payment notifications
+- [ ] Handle subscription renewal
+- [ ] Handle payment failures with blocking popup
+
+**Webhook Events to Handle:**
+- `subscription.activated`
+- `subscription.charged`
+- `subscription.pending`
+- `subscription.cancelled`
+- `payment.failed`
+
+### 2. Deep Linking for Invite Links
+**Current State:** Basic deep linking setup
+**Target:** Production-ready deep linking
+
+**Tasks:**
+- [ ] Configure app scheme in app.json
+- [ ] Set up Universal Links (iOS) / App Links (Android)
+- [ ] Configure domain for deep linking
+- [ ] Handle link when app not installed → redirect to store
+- [ ] Test on both platforms
+
+**Deep Link Format:**
+- Custom scheme: `yourapp://invite/CODE`
+- Universal link: `https://yourdomain.com/invite/CODE`
+
+### 3. Push Notifications
+**Current State:** expo-notifications installed
+**Target:** Working push notifications
+
+**Tasks:**
+- [ ] Register for push notifications
+- [ ] Store push tokens in database
+- [ ] Send notification when employee joins organization
+- [ ] Handle notification taps
+
+**Notification Types:**
+- Employee joined organization
+- Subscription expiring soon
+- Payment failed
+
+### 4. Admin Dashboard (Web)
+**Current State:** Backend API endpoints ready
+**Target:** Web admin dashboard
+
+**Features:**
+- Spreadsheet-like user list with filters
+- City-wise pricing controls
+- User subscription management
+- Organization management
+- Property viewer per firm
+
+**UI Design:**
+- Shiny black marble background for spreadsheet
+- Blue watery background with bubbles for page
+- Columns: Name, Mobile, Firm Name, Subscription Status
+- Click row to see details
+
+**Admin Endpoints Ready:**
+- GET `/api/admin/users` - List all owners
+- GET `/api/admin/users/{id}` - User details
+- GET `/api/admin/users/{id}/properties` - User's properties
+- PUT `/api/admin/users/{id}/subscription` - Update subscription
+- GET `/api/admin/pricing` - All city pricing
+- PUT `/api/admin/pricing/{city}` - Update city pricing
 
 ---
 
-## 🟢 LOW PRIORITY - Nice to Have
+## 🟡 MEDIUM PRIORITY
 
-### 6. Offline Support
-- [ ] Implement local data caching with MMKV or AsyncStorage
-- [ ] Add sync mechanism for offline-created properties
-- [ ] Handle offline photo storage
+### 5. Supabase Full Migration
+**Current State:** MongoDB + custom auth
+**Target:** Supabase PostgreSQL + Auth + Storage
 
-### 7. Push Notifications
-- [ ] Set up expo-notifications
-- [ ] Add notification for property updates
-- [ ] Add notification for new properties in area
+**Tasks:**
+- [ ] Migrate database to Supabase PostgreSQL
+- [ ] Set up Row Level Security (RLS)
+- [ ] Migrate file storage to Supabase Storage
+- [ ] Update frontend to use Supabase client
+
+### 6. Single Device Login
+**Current State:** No device restrictions
+**Target:** One mobile per account
+
+**Tasks:**
+- [ ] Store device ID on login
+- [ ] Check device ID on auth
+- [ ] Force logout on other devices
+- [ ] Show "logged in on another device" message
+
+---
+
+## 🟢 LOW PRIORITY
+
+### 7. Offline Support
+- [ ] Cache properties locally
+- [ ] Sync when online
 
 ### 8. Analytics
-- [ ] Add property view tracking
-- [ ] Add search analytics
-- [ ] Add user behavior tracking
+- [ ] Track user behavior
+- [ ] Track feature usage
 
 ---
 
-## 📱 Deployment Notes
+## 📱 App Configuration
 
-### Android Deployment
+### Android Configuration (app.json)
 ```json
-// app.json additions for Google Maps
 {
   "expo": {
     "android": {
-      "config": {
-        "googleMaps": {
-          "apiKey": "AIzaSyC46BsGdP0YtuAuxdlgP8rTni1vwmy4oDA"
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "yourdomain.com",
+              "pathPrefix": "/invite"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
         }
-      }
+      ]
     }
   }
 }
 ```
 
-### iOS Deployment
+### iOS Configuration (app.json)
 ```json
-// app.json additions for Google Maps
 {
   "expo": {
     "ios": {
-      "config": {
-        "googleMapsApiKey": "AIzaSyC46BsGdP0YtuAuxdlgP8rTni1vwmy4oDA"
-      }
+      "associatedDomains": [
+        "applinks:yourdomain.com"
+      ]
     }
   }
 }
@@ -171,74 +198,58 @@ CREATE TABLE properties (
 
 ---
 
-## 🔧 Technical Debt
+## 🔧 Environment Variables
 
-### Known Issues
-1. **Shadow warnings on web:** "shadow*" style props deprecated, use "boxShadow"
-2. **Base64 image size:** Large images increase DB size significantly
+### Backend (.env)
+```
+MONGO_URL=mongodb://localhost:27017
+DB_NAME=test_database
+SUPABASE_URL=https://zolmdmbalbieltuhzbjb.supabase.co
+SUPABASE_KEY=sb_publishable_...
 
-### Code Quality
-- [ ] Add TypeScript strict mode
-- [ ] Add unit tests for critical functions
-- [ ] Add E2E tests with Detox
+# Add when ready:
+RAZORPAY_KEY_ID=your_key
+RAZORPAY_KEY_SECRET=your_secret
+```
+
+### Frontend (.env)
+```
+EXPO_PUBLIC_BACKEND_URL=https://yourapp.com
+EXPO_PUBLIC_SUPABASE_URL=https://zolmdmbalbieltuhzbjb.supabase.co
+EXPO_PUBLIC_SUPABASE_KEY=sb_publishable_...
+```
 
 ---
 
-## 📋 Recent Changes Summary (Current Session)
+## 📋 API Endpoints Summary
 
-### Add Property Screen
-- ✅ Added property category (Residential/Commercial)
-- ✅ Commercial property types: Land/Plot Parcel, SCO, Working Space
-- ✅ Case types: Added RENTAL, LEASE_HOLD
-- ✅ Rental case type shows "Lakh per month" price unit
-- ✅ Age type: Fresh, Resale, UnderConstruction
-- ✅ Resale shows property age field
-- ✅ Possession changed to month/year dropdowns (years to 2075)
-- ✅ Size/Area with Carpet, Built-up, Super Built-up options
-- ✅ Size units: sq. ft., sq. yards(gaj), sq. mts.
-- ✅ Multiple floors with floor+price pairs for Builder Floor/Apartment
-- ✅ Builder name field narrower
-- ✅ Address fields: Unit No, Block, Sector/Area, City
-- ✅ IMPORTANT FILES field with attach button
-- ✅ Removed handover date
-- ✅ Payment plan moved before important files
+### Authentication
+- POST `/api/auth/send-otp` - Send OTP to mobile
+- POST `/api/auth/verify-otp` - Verify OTP
+- POST `/api/auth/signup` - Complete registration
+- GET `/api/auth/me` - Get current user
+- PUT `/api/auth/profile` - Update profile
+- GET `/api/auth/check-invite/{code}` - Check invite code validity
 
-### Property Details Screen
-- ✅ Removed delete icon from header
-- ✅ Added "Property Sold" and "Delete Property" buttons at bottom
-- ✅ Multiple "Mark Sold" buttons for multi-floor properties
+### Organization
+- POST `/api/organization` - Create organization
+- GET `/api/organization` - Get user's organization
+- GET `/api/organization/members` - Get members
+- DELETE `/api/organization/members/{id}` - Remove member
+- PUT `/api/organization/seats` - Update seat count
 
-### Search Screen
-- ✅ Expanded filters matching add property fields
-- ✅ Filters: Category, Type, Case, Age Type, Price Range
-- ✅ Include Sold toggle
+### Subscription
+- GET `/api/pricing` - Get pricing for user's city
+- POST `/api/subscription/create` - Create subscription (mock)
+- GET `/api/subscription` - Get current subscription
 
-### Map Screen
-- ✅ Google Maps integration with API key
-- ✅ Property markers with price labels
-- ✅ Property card popup like Airbnb/MMT
-- ✅ Same filters as search screen
-- ✅ User location tracking
-
-### WhatsApp Share
-- ✅ Removed builder name, phone, location from share options
-- ✅ Photos shared as group with details caption
-
-### UI/UX Fixes
-- ✅ Tab bar height adjusted for Android system buttons
-- ✅ Safe area insets applied throughout
-- ✅ Max content width for wide screens (Galaxy Fold)
-
----
-
-## 🔑 Environment Variables Required for Supabase
-
-When migrating to Supabase, you'll need:
-```
-SUPABASE_URL=your-project-url
-SUPABASE_ANON_KEY=your-anon-key
-SUPABASE_SERVICE_KEY=your-service-key (backend only)
-```
+### Properties
+- POST `/api/properties` - Create property
+- GET `/api/properties` - List properties
+- GET `/api/properties/{id}` - Get property
+- PUT `/api/properties/{id}` - Update property
+- DELETE `/api/properties/{id}` - Delete property
+- PATCH `/api/properties/{id}/sold` - Mark as sold
 
 ---
 
