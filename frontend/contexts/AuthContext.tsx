@@ -1,15 +1,16 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
-import api from '../lib/api';
+import { authService, subscriptionService } from '../lib/supabaseService';
+import { Profile } from '../lib/supabase';
 
 interface User {
   id: string;
   mobile: string;
-  name: string;
-  firm_name: string;
-  city: string;
-  email: string;
+  name: string | null;
+  firm_name: string | null;
+  city: string | null;
+  email: string | null;
   role: 'owner' | 'employee';
   is_pro: boolean;
   organization_id: string | null;
@@ -56,6 +57,23 @@ const AuthContext = createContext<AuthContextType>({
 
 export const useAuth = () => useContext(AuthContext);
 
+// Convert Profile to User format
+const profileToUser = (profile: Profile): User => ({
+  id: profile.id,
+  mobile: profile.mobile,
+  name: profile.name,
+  firm_name: profile.firm_name,
+  city: profile.city,
+  email: profile.email,
+  role: profile.role,
+  is_pro: profile.is_pro,
+  organization_id: profile.organization_id,
+  profile_photo: profile.profile_photo,
+  subscription_status: profile.subscription_status,
+  created_at: profile.created_at,
+  updated_at: profile.updated_at,
+});
+
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -67,28 +85,37 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const checkAuth = async () => {
     try {
-      const token = await AsyncStorage.getItem('access_token');
+      // Check for stored user ID (our custom auth, not Supabase Auth yet)
+      const userId = await AsyncStorage.getItem('user_id');
       const userStr = await AsyncStorage.getItem('user');
       
-      if (token && userStr) {
-        const userData = JSON.parse(userStr);
-        setUser(userData);
+      if (userId && userStr) {
+        // Set cached user data immediately for fast UI
+        const cachedUser = JSON.parse(userStr);
+        setUser(cachedUser);
         
+        // Then fetch fresh data from Supabase
         try {
-          const response = await api.get('/auth/me');
-          setUser(response.data);
-          await AsyncStorage.setItem('user', JSON.stringify(response.data));
-          
-          // Check if payment is required (subscription expired)
-          if (response.data.role === 'owner' && 
-              response.data.is_pro === false && 
-              response.data.subscription_status === 'expired') {
-            setPaymentRequired(true);
+          const profile = await authService.getProfile(userId);
+          if (profile) {
+            const userData = profileToUser(profile);
+            setUser(userData);
+            await AsyncStorage.setItem('user', JSON.stringify(userData));
+            
+            // Check subscription status
+            const subscription = await subscriptionService.get(userId);
+            if (profile.role === 'owner' && !subscription && profile.subscription_status === 'expired') {
+              setPaymentRequired(true);
+            }
+          } else {
+            // User not found in database, clear local storage
+            await AsyncStorage.removeItem('user_id');
+            await AsyncStorage.removeItem('user');
+            setUser(null);
           }
         } catch (error) {
-          await AsyncStorage.removeItem('access_token');
-          await AsyncStorage.removeItem('user');
-          setUser(null);
+          console.error('Error fetching profile:', error);
+          // Keep cached user on network error
         }
       }
     } catch (error) {
@@ -100,54 +127,54 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const sendOTP = async (mobile: string) => {
     try {
-      await api.post('/auth/send-otp', { mobile, country_code: '+91' });
+      await authService.sendOTP(mobile);
     } catch (error: any) {
-      throw new Error(error.response?.data?.detail || 'Failed to send OTP');
+      throw new Error(error.message || 'Failed to send OTP');
     }
   };
 
   const verifyOTP = async (mobile: string, otp: string) => {
     try {
-      const response = await api.post('/auth/verify-otp', { mobile, otp });
+      const result = await authService.verifyOTP(mobile, otp);
       
-      if (!response.data.is_new_user) {
-        // Existing user - save token and user data
-        await AsyncStorage.setItem('access_token', response.data.access_token);
-        await AsyncStorage.setItem('user', JSON.stringify(response.data.user));
-        setUser(response.data.user);
+      if (!result.isNewUser && result.profile) {
+        // Existing user - save user data
+        const userData = profileToUser(result.profile);
+        await AsyncStorage.setItem('user_id', result.profile.id);
+        await AsyncStorage.setItem('user', JSON.stringify(userData));
+        setUser(userData);
         
         // Check payment status
-        if (response.data.user.role === 'owner' && 
-            response.data.user.is_pro === false && 
-            response.data.user.subscription_status === 'expired') {
+        const subscription = await subscriptionService.get(result.profile.id);
+        if (result.profile.role === 'owner' && !subscription && result.profile.subscription_status === 'expired') {
           setPaymentRequired(true);
         }
         
         return { isNewUser: false };
       }
       
-      return { isNewUser: true, mobile: response.data.mobile };
+      return { isNewUser: true, mobile: result.mobile };
     } catch (error: any) {
-      throw new Error(error.response?.data?.detail || 'OTP verification failed');
+      throw new Error(error.message || 'OTP verification failed');
     }
   };
 
   const signUp = async (data: SignUpData) => {
     try {
-      const response = await api.post('/auth/signup', data);
-      const { access_token, user: userData } = response.data;
+      const profile = await authService.signUp(data);
+      const userData = profileToUser(profile);
       
-      await AsyncStorage.setItem('access_token', access_token);
+      await AsyncStorage.setItem('user_id', profile.id);
       await AsyncStorage.setItem('user', JSON.stringify(userData));
       
       setUser(userData);
     } catch (error: any) {
-      throw new Error(error.response?.data?.detail || 'Registration failed');
+      throw new Error(error.message || 'Registration failed');
     }
   };
 
   const signOut = async () => {
-    await AsyncStorage.removeItem('access_token');
+    await AsyncStorage.removeItem('user_id');
     await AsyncStorage.removeItem('user');
     setUser(null);
     setPaymentRequired(false);
@@ -156,16 +183,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const refreshUser = async () => {
     try {
-      const response = await api.get('/auth/me');
-      setUser(response.data);
-      await AsyncStorage.setItem('user', JSON.stringify(response.data));
+      const userId = await AsyncStorage.getItem('user_id');
+      if (!userId) return;
       
-      if (response.data.role === 'owner' && 
-          response.data.is_pro === false && 
-          response.data.subscription_status === 'expired') {
-        setPaymentRequired(true);
-      } else {
-        setPaymentRequired(false);
+      const profile = await authService.getProfile(userId);
+      if (profile) {
+        const userData = profileToUser(profile);
+        setUser(userData);
+        await AsyncStorage.setItem('user', JSON.stringify(userData));
+        
+        // Check subscription status
+        const subscription = await subscriptionService.get(userId);
+        if (profile.role === 'owner' && !subscription && profile.subscription_status === 'expired') {
+          setPaymentRequired(true);
+        } else {
+          setPaymentRequired(false);
+        }
       }
     } catch (error) {
       console.error('Error refreshing user:', error);
