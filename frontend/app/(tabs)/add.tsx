@@ -353,7 +353,7 @@ export default function AddPropertyScreen() {
 
       const newPhoto: PhotoData = {
         uri: result.assets[0].uri,
-        base64: result.assets[0].base64,
+        base64: result.assets[0].base64 || undefined,
         location,
       };
 
