@@ -1559,9 +1559,10 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   subLabel: {
-    fontSize: 12,
-    color: '#999',
+    fontSize: 13,
+    color: '#aaa',
     marginBottom: 8,
+    marginTop: 4,
   },
   input: {
     backgroundColor: '#1a1a1a',
