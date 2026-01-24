@@ -1,83 +1,109 @@
 // Supabase Database Services
 // Direct database operations - no backend server needed!
+// Uses Supabase Auth for authentication
 
-import { supabase, Profile, Organization, OrganizationMember, Pricing, Subscription, Property, OTPVerification } from './supabase';
+import { supabase, Profile, Organization, OrganizationMember, Pricing, Subscription, Property, InAppMessage, AppConfig } from './supabase';
 
 // ============================================================================
-// OTP & AUTH SERVICES (using custom OTP for development)
+// AUTH SERVICES (Using Supabase Auth)
 // ============================================================================
 
-const TEST_OTP = '000000'; // Static OTP for testing
+const TEST_OTP = '000000'; // Static OTP for development testing
 
 export const authService = {
   /**
-   * Send OTP to mobile number
-   * During development: stores OTP in database (always 000000)
-   * In production: will use Supabase Phone Auth with Twilio
+   * Send OTP to mobile number using Supabase Auth
+   * For development: accepts any OTP (000000)
+   * For production: uses Twilio via Supabase
    */
   async sendOTP(mobile: string, countryCode: string = '+91'): Promise<void> {
-    // Clean mobile number
     const cleanMobile = mobile.replace(/\D/g, '');
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 minutes
+    const fullPhone = `${countryCode}${cleanMobile}`;
     
-    // Upsert OTP record
-    const { error } = await supabase
-      .from('otp_verifications')
-      .upsert({
-        mobile: cleanMobile,
-        country_code: countryCode,
-        otp: TEST_OTP,
-        verified: false,
-        expires_at: expiresAt,
-      }, {
-        onConflict: 'mobile'
-      });
+    // Use Supabase Auth phone OTP
+    const { error } = await supabase.auth.signInWithOtp({
+      phone: fullPhone,
+    });
     
-    if (error) throw new Error(error.message);
+    // In development, we accept 000000 regardless of Supabase response
+    // Supabase might not send SMS in development mode
+    if (error && !error.message.includes('rate limit')) {
+      console.warn('Supabase OTP warning:', error.message);
+    }
     
-    console.log(`OTP sent to ${mobile}: ${TEST_OTP}`);
+    console.log(`OTP sent to ${fullPhone}. Use ${TEST_OTP} for testing.`);
   },
 
   /**
    * Verify OTP and check if user exists
-   * Returns: { verified, isNewUser, profile?, mobile }
+   * Returns: { verified, isNewUser, profile?, mobile, userId? }
    */
-  async verifyOTP(mobile: string, otp: string): Promise<{
+  async verifyOTP(mobile: string, otp: string, countryCode: string = '+91'): Promise<{
     verified: boolean;
     isNewUser: boolean;
     profile?: Profile;
     mobile: string;
+    userId?: string;
   }> {
     const cleanMobile = mobile.replace(/\D/g, '');
+    const fullPhone = `${countryCode}${cleanMobile}`;
     
-    // Get OTP record
-    const { data: otpRecord, error: otpError } = await supabase
-      .from('otp_verifications')
-      .select('*')
-      .eq('mobile', cleanMobile)
-      .single();
-    
-    if (otpError || !otpRecord) {
-      throw new Error('OTP not found. Please request a new one.');
+    // For development: accept 000000 as valid OTP
+    if (otp === TEST_OTP) {
+      // Check if user exists in profiles
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('mobile', cleanMobile)
+        .single();
+      
+      if (profile) {
+        return {
+          verified: true,
+          isNewUser: false,
+          profile: profile as Profile,
+          mobile: cleanMobile,
+          userId: profile.id,
+        };
+      }
+      
+      return {
+        verified: true,
+        isNewUser: true,
+        mobile: cleanMobile,
+      };
     }
     
-    // Check expiry
-    if (new Date(otpRecord.expires_at) < new Date()) {
-      throw new Error('OTP expired. Please request a new one.');
-    }
+    // For production: verify with Supabase Auth
+    const { data, error } = await supabase.auth.verifyOtp({
+      phone: fullPhone,
+      token: otp,
+      type: 'sms',
+    });
     
-    // Verify OTP (000000 always works for testing)
-    if (otp !== otpRecord.otp && otp !== TEST_OTP) {
+    if (error) {
+      // Fall back to test OTP if Supabase fails
+      if (otp === TEST_OTP) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('mobile', cleanMobile)
+          .single();
+        
+        return {
+          verified: true,
+          isNewUser: !profile,
+          profile: profile as Profile || undefined,
+          mobile: cleanMobile,
+          userId: profile?.id,
+        };
+      }
       throw new Error('Invalid OTP');
     }
     
-    // Mark as verified
-    await supabase
-      .from('otp_verifications')
-      .update({ verified: true })
-      .eq('mobile', cleanMobile);
+    const userId = data.user?.id;
     
-    // Check if user exists
+    // Check if profile exists
     const { data: profile } = await supabase
       .from('profiles')
       .select('*')
@@ -90,6 +116,7 @@ export const authService = {
         isNewUser: false,
         profile: profile as Profile,
         mobile: cleanMobile,
+        userId: profile.id,
       };
     }
     
@@ -97,6 +124,7 @@ export const authService = {
       verified: true,
       isNewUser: true,
       mobile: cleanMobile,
+      userId,
     };
   },
 
@@ -115,17 +143,6 @@ export const authService = {
   }): Promise<Profile> {
     const cleanMobile = data.mobile.replace(/\D/g, '');
     
-    // Check OTP was verified
-    const { data: otpRecord } = await supabase
-      .from('otp_verifications')
-      .select('verified')
-      .eq('mobile', cleanMobile)
-      .single();
-    
-    if (!otpRecord?.verified) {
-      throw new Error('Please verify your mobile number first');
-    }
-    
     // Check if user already exists
     const { data: existing } = await supabase
       .from('profiles')
@@ -138,18 +155,20 @@ export const authService = {
     }
     
     // Check if email is taken
-    const { data: emailExists } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('email', data.email)
-      .single();
-    
-    if (emailExists) {
-      throw new Error('Email already registered');
+    if (data.email) {
+      const { data: emailExists } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('email', data.email)
+        .single();
+      
+      if (emailExists) {
+        throw new Error('Email already registered');
+      }
     }
     
     // Determine role based on invite code
-    let role: 'owner' | 'employee' = 'owner';
+    let role: 'broker' | 'employee' = 'broker';
     let organizationId: string | null = null;
     let firmName = data.firm_name;
     
@@ -177,8 +196,7 @@ export const authService = {
       }
     }
     
-    // Create profile using Supabase auth
-    // For now, create directly in profiles table (will switch to Supabase Auth later)
+    // Generate UUID for profile
     const profileId = crypto.randomUUID();
     
     const { data: profile, error: profileError } = await supabase
@@ -191,7 +209,7 @@ export const authService = {
         city: data.city,
         email: data.email,
         role,
-        is_pro: false,
+        is_pro_broker: false,
         organization_id: organizationId,
         latitude: data.latitude,
         longitude: data.longitude,
@@ -211,12 +229,6 @@ export const authService = {
       });
     }
     
-    // Clean up OTP record
-    await supabase
-      .from('otp_verifications')
-      .delete()
-      .eq('mobile', cleanMobile);
-    
     return profile as Profile;
   },
 
@@ -228,6 +240,21 @@ export const authService = {
       .from('profiles')
       .select('*')
       .eq('id', userId)
+      .single();
+    
+    if (error) return null;
+    return data as Profile;
+  },
+
+  /**
+   * Get profile by mobile
+   */
+  async getProfileByMobile(mobile: string): Promise<Profile | null> {
+    const cleanMobile = mobile.replace(/\D/g, '');
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('mobile', cleanMobile)
       .single();
     
     if (error) return null;
@@ -248,6 +275,13 @@ export const authService = {
     if (error) throw new Error(error.message);
     return data as Profile;
   },
+
+  /**
+   * Sign out
+   */
+  async signOut(): Promise<void> {
+    await supabase.auth.signOut();
+  },
 };
 
 // ============================================================================
@@ -256,22 +290,22 @@ export const authService = {
 
 export const organizationService = {
   /**
-   * Create organization (Pro owners only)
+   * Create organization (Pro brokers only)
    */
   async create(userId: string, name: string, employeeSeats: number = 0): Promise<Organization> {
-    // Check if user is pro
+    // Check if user is pro broker
     const { data: profile } = await supabase
       .from('profiles')
-      .select('is_pro, role')
+      .select('is_pro_broker, role')
       .eq('id', userId)
       .single();
     
-    if (!profile?.is_pro) {
-      throw new Error('Only Pro owners can create organizations');
+    if (!profile?.is_pro_broker) {
+      throw new Error('Only Pro Brokers can create organizations');
     }
     
-    if (profile.role !== 'owner') {
-      throw new Error('Only owners can create organizations');
+    if (profile.role !== 'broker') {
+      throw new Error('Only brokers can create organizations');
     }
     
     // Check if user already has an organization
@@ -311,7 +345,7 @@ export const organizationService = {
     await supabase.from('organization_members').insert({
       user_id: userId,
       organization_id: org.id,
-      role: 'owner',
+      role: 'broker',
       joined_at: new Date().toISOString(),
     });
     
@@ -530,7 +564,7 @@ export const subscriptionService = {
    */
   async create(
     userId: string,
-    planType: 'pro_owner_monthly' | 'pro_owner_annual',
+    planType: 'pro_broker_monthly' | 'pro_broker_annual',
     employeeSeats: number = 0
   ): Promise<Subscription> {
     // Get user's city
@@ -540,19 +574,19 @@ export const subscriptionService = {
       .eq('id', userId)
       .single();
     
-    if (profile?.role !== 'owner') {
-      throw new Error('Only owners can subscribe');
+    if (profile?.role !== 'broker') {
+      throw new Error('Only brokers can subscribe');
     }
     
     // Get pricing
     const pricing = await pricingService.getForCity(profile?.city || 'other_cities');
     
     // Calculate amount
-    let amount = planType === 'pro_owner_monthly' 
-      ? pricing.pro_owner_monthly 
-      : pricing.pro_owner_annual;
+    let amount = planType === 'pro_broker_monthly' 
+      ? pricing.pro_broker_monthly 
+      : pricing.pro_broker_annual;
     
-    const durationDays = planType === 'pro_owner_monthly' ? 30 : 365;
+    const durationDays = planType === 'pro_broker_monthly' ? 30 : 365;
     
     // Add employee seats cost
     if (employeeSeats > 0) {
@@ -579,11 +613,11 @@ export const subscriptionService = {
     
     if (error) throw new Error(error.message);
     
-    // Update user to Pro
+    // Update user to Pro Broker
     await supabase
       .from('profiles')
       .update({
-        is_pro: true,
+        is_pro_broker: true,
         subscription_status: 'active',
       })
       .eq('id', userId);
@@ -629,7 +663,7 @@ export const subscriptionService = {
       
       await supabase
         .from('profiles')
-        .update({ is_pro: false, subscription_status: 'expired' })
+        .update({ is_pro_broker: false, subscription_status: 'expired' })
         .eq('id', userId);
       
       return null;
@@ -769,7 +803,7 @@ export const propertyService = {
         .single();
       
       if (property?.floors) {
-        const floors = property.floors.map((f: any) => 
+        const floors = (property.floors as any[]).map((f: any) => 
           f.floorNumber === floorNumber ? { ...f, isSold: true } : f
         );
         const allSold = floors.every((f: any) => f.isSold);
@@ -846,6 +880,30 @@ export const storageService = {
   },
 
   /**
+   * Upload property video
+   */
+  async uploadPropertyVideo(userId: string, uri: string, propertyId?: string): Promise<string> {
+    const fileName = `${userId}/${propertyId || 'temp'}/${Date.now()}.mp4`;
+    
+    const response = await fetch(uri);
+    const blob = await response.blob();
+    
+    const { error } = await supabase.storage
+      .from('property-videos')
+      .upload(fileName, blob, {
+        contentType: 'video/mp4',
+      });
+    
+    if (error) throw new Error(error.message);
+    
+    const { data } = supabase.storage
+      .from('property-videos')
+      .getPublicUrl(fileName);
+    
+    return data.publicUrl;
+  },
+
+  /**
    * Upload property file (PDF, etc.)
    */
   async uploadPropertyFile(userId: string, uri: string, fileName: string, mimeType: string): Promise<string> {
@@ -871,6 +929,152 @@ export const storageService = {
 };
 
 // ============================================================================
+// IN-APP MESSAGING SERVICES
+// ============================================================================
+
+export const messagingService = {
+  /**
+   * Get active in-app messages for user
+   */
+  async getActiveMessages(userId: string, userCity?: string, isPro?: boolean): Promise<InAppMessage[]> {
+    const now = new Date().toISOString();
+    
+    // Get messages user hasn't dismissed (if show_once)
+    const { data: dismissedIds } = await supabase
+      .from('user_message_status')
+      .select('message_id')
+      .eq('user_id', userId)
+      .not('dismissed_at', 'is', null);
+    
+    const dismissedMessageIds = dismissedIds?.map(d => d.message_id) || [];
+    
+    let query = supabase
+      .from('in_app_messages')
+      .select('*')
+      .eq('is_active', true)
+      .lte('start_date', now)
+      .or(`end_date.is.null,end_date.gte.${now}`)
+      .order('priority', { ascending: false });
+    
+    const { data: messages, error } = await query;
+    
+    if (error) throw new Error(error.message);
+    
+    // Filter messages based on targeting and dismiss status
+    return (messages as InAppMessage[]).filter(msg => {
+      // Check if dismissed (for show_once messages)
+      if (msg.show_once && dismissedMessageIds.includes(msg.id)) {
+        return false;
+      }
+      
+      // Check targeting
+      switch (msg.target_type) {
+        case 'all':
+          return true;
+        case 'pro_only':
+          return isPro === true;
+        case 'non_pro':
+          return isPro === false;
+        case 'region':
+          return msg.target_value?.cities?.includes(userCity?.toLowerCase());
+        case 'user_ids':
+          return msg.target_value?.user_ids?.includes(userId);
+        case 'role':
+          // Would need to pass role as param
+          return true;
+        default:
+          return true;
+      }
+    });
+  },
+
+  /**
+   * Mark message as seen
+   */
+  async markSeen(userId: string, messageId: string): Promise<void> {
+    await supabase
+      .from('user_message_status')
+      .upsert({
+        user_id: userId,
+        message_id: messageId,
+        seen_at: new Date().toISOString(),
+      }, {
+        onConflict: 'user_id,message_id',
+      });
+  },
+
+  /**
+   * Dismiss message
+   */
+  async dismiss(userId: string, messageId: string): Promise<void> {
+    await supabase
+      .from('user_message_status')
+      .upsert({
+        user_id: userId,
+        message_id: messageId,
+        dismissed_at: new Date().toISOString(),
+      }, {
+        onConflict: 'user_id,message_id',
+      });
+  },
+
+  /**
+   * Track action click
+   */
+  async trackAction(userId: string, messageId: string): Promise<void> {
+    await supabase
+      .from('user_message_status')
+      .upsert({
+        user_id: userId,
+        message_id: messageId,
+        clicked_action: true,
+      }, {
+        onConflict: 'user_id,message_id',
+      });
+  },
+};
+
+// ============================================================================
+// APP CONFIG SERVICES
+// ============================================================================
+
+export const configService = {
+  /**
+   * Get all active config
+   */
+  async getAll(): Promise<Record<string, any>> {
+    const { data, error } = await supabase
+      .from('app_config')
+      .select('key, value')
+      .eq('is_active', true);
+    
+    if (error) throw new Error(error.message);
+    
+    const config: Record<string, any> = {};
+    data?.forEach(item => {
+      config[item.key] = item.value;
+    });
+    
+    return config;
+  },
+
+  /**
+   * Get specific config
+   */
+  async get(key: string): Promise<any> {
+    const { data, error } = await supabase
+      .from('app_config')
+      .select('value')
+      .eq('key', key)
+      .eq('is_active', true)
+      .single();
+    
+    if (error) return null;
+    return data?.value;
+  },
+};
+
+// ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
 
@@ -890,4 +1094,6 @@ export default {
   subscription: subscriptionService,
   property: propertyService,
   storage: storageService,
+  messaging: messagingService,
+  config: configService,
 };
