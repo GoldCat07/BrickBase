@@ -20,6 +20,7 @@
     "@supabase/supabase-js": "^2.90.1",
     "axios": "^1.13.2",
     "expo": "^54.0.32",
+    "expo-av": "^16.0.8",
     "expo-blur": "~14.1.5",
     "expo-camera": "^17.0.10",
     "expo-clipboard": "^8.0.8",
