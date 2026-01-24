@@ -146,7 +146,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         
         // Check payment status
         const subscription = await subscriptionService.get(result.profile.id);
-        if (result.profile.role === 'owner' && !subscription && result.profile.subscription_status === 'expired') {
+        if (result.profile.role === 'broker' && !subscription && result.profile.subscription_status === 'expired') {
           setPaymentRequired(true);
         }
         
