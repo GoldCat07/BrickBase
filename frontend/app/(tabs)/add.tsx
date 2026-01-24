@@ -267,6 +267,7 @@ export default function AddPropertyScreen() {
     setCaseType('');
     setAgeType('');
     setPhotos([]);
+    setVideos([]);
     setPhotosWithoutLocation(0);
     setFloors([{ floorNumber: 0, price: 0, priceUnit: 'cr' }]);
     setPrice('');
