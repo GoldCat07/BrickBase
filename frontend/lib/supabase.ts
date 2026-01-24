@@ -50,7 +50,7 @@ export interface OrganizationMember {
   id: string;
   organization_id: string;
   user_id: string;
-  role: 'owner' | 'employee';
+  role: 'broker' | 'employee';
   joined_at: string;
   created_at: string;
   updated_at: string;
