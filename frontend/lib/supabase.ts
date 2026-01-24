@@ -22,14 +22,16 @@ export interface Profile {
   firm_name: string | null;
   city: string | null;
   email: string | null;
-  role: 'owner' | 'employee';
-  is_pro: boolean;
+  role: 'broker' | 'employee';
+  is_pro_broker: boolean;
   profile_photo: string | null;
   subscription_status: 'active' | 'expired' | 'pending_payment' | null;
   organization_id: string | null;
   latitude: number | null;
   longitude: number | null;
   device_token: string | null;
+  device_id: string | null;
+  last_login_at: string | null;
   created_at: string;
   updated_at: string;
 }
