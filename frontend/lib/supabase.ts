@@ -88,6 +88,7 @@ export interface Property {
   property_category: 'Residential' | 'Commercial' | null;
   property_type: string | null;
   property_photos: string[];
+  property_videos: string[];
   price: number | null;
   price_unit: 'cr' | 'lakh' | 'lakh_per_month' | null;
   floors: Array<{
@@ -139,12 +140,33 @@ export interface Property {
   updated_at: string;
 }
 
-export interface OTPVerification {
+// In-App Messaging Types
+export interface InAppMessage {
   id: string;
-  mobile: string;
-  country_code: string;
-  otp: string;
-  verified: boolean;
-  expires_at: string;
+  title: string;
+  message: string | null;
+  image_url: string | null;
+  action_type: 'none' | 'link' | 'screen' | 'deeplink' | null;
+  action_value: string | null;
+  button_text: string | null;
+  style: 'popup' | 'banner' | 'fullscreen' | 'bottom_sheet';
+  target_type: 'all' | 'region' | 'user_ids' | 'role' | 'pro_only' | 'non_pro';
+  target_value: any;
+  start_date: string;
+  end_date: string | null;
+  show_once: boolean;
+  priority: number;
+  is_active: boolean;
   created_at: string;
+  updated_at: string;
+}
+
+export interface AppConfig {
+  id: string;
+  key: string;
+  value: any;
+  description: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
 }
