@@ -442,7 +442,7 @@ export default function AddPropertyScreen() {
 
         return {
           uri: asset.uri,
-          base64: asset.base64,
+          base64: asset.base64 || undefined,
           location,
         };
       });
