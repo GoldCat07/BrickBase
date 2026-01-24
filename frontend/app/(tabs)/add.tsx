@@ -471,6 +471,48 @@ export default function AddPropertyScreen() {
     setPhotos(photos.filter((_, i) => i !== index));
   };
 
+  // Video picker
+  const pickVideo = async () => {
+    const permissions = await requestPermissions();
+    
+    if (permissions.mediaStatus !== 'granted') {
+      Alert.alert('Permission Required', 'Gallery permission is required to select videos');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: 'videos',
+      allowsMultipleSelection: true,
+      quality: 0.7,
+    });
+
+    if (!result.canceled && result.assets.length > 0) {
+      const newVideos: VideoData[] = result.assets.map(asset => ({
+        uri: asset.uri,
+      }));
+      setVideos(prev => [...prev, ...newVideos]);
+    }
+  };
+
+  const removeVideo = (index: number) => {
+    setVideos(videos.filter((_, i) => i !== index));
+  };
+
+  // Open media gallery
+  const openMediaGallery = () => {
+    const photoUris = photos.map(p => p.uri);
+    const videoUris = videos.map(v => v.uri);
+    
+    router.push({
+      pathname: '/media-gallery',
+      params: {
+        photos: JSON.stringify(photoUris),
+        videos: JSON.stringify(videoUris),
+        title: 'Property Media',
+      },
+    });
+  };
+
   const preparePhotos = () => {
     return photos.map(photo => photo.base64 ? `data:image/jpeg;base64,${photo.base64}` : photo.uri);
   };
