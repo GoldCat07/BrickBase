@@ -71,13 +71,14 @@ export interface Pricing {
 export interface Subscription {
   id: string;
   user_id: string;
-  plan_type: 'pro_owner_monthly' | 'pro_owner_annual' | 'admin_granted';
+  plan_type: 'pro_broker_monthly' | 'pro_broker_annual' | 'admin_granted';
   status: 'active' | 'expired' | 'pending_payment' | 'cancelled';
   employee_seats: number;
   amount: number;
   payment_id: string | null;
   start_date: string;
   end_date: string;
+  granted_by: string | null;
   created_at: string;
   updated_at: string;
 }
