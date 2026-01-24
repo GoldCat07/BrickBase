@@ -66,7 +66,7 @@ export default function OrganizationScreen() {
   };
 
   const handleCreateOrganization = async () => {
-    if (!user?.is_pro) {
+    if (!user?.is_pro_broker) {
       Alert.alert(
         'Pro Required',
         'Only Pro owners can create organizations and add employees.',
@@ -123,7 +123,7 @@ export default function OrganizationScreen() {
   };
 
   const handleRemoveMember = (member: Member) => {
-    if (member.role === 'owner') {
+    if (member.role === 'broker') {
       Alert.alert('Cannot Remove', 'You cannot remove the organization owner.');
       return;
     }
@@ -164,7 +164,7 @@ export default function OrganizationScreen() {
   }
 
   // No organization - show setup
-  if (!organization && user?.role === 'owner') {
+  if (!organization && user?.role === 'broker') {
     return (
       <SafeAreaView style={styles.container} edges={['bottom']}>
         <ScrollView contentContainerStyle={styles.emptyContainer}>
@@ -191,7 +191,7 @@ export default function OrganizationScreen() {
             </View>
           </View>
 
-          {!user?.is_pro && (
+          {!user?.is_pro_broker && (
             <View style={styles.proNotice}>
               <Ionicons name="lock-closed" size={24} color="#FFD700" />
               <View style={styles.proNoticeText}>
@@ -204,24 +204,24 @@ export default function OrganizationScreen() {
           <TouchableOpacity
             style={[
               styles.createButton,
-              !user?.is_pro && styles.createButtonDisabled
+              !user?.is_pro_broker && styles.createButtonDisabled
             ]}
-            onPress={user?.is_pro ? handleCreateOrganization : () => router.push('/subscription')}
+            onPress={user?.is_pro_broker ? handleCreateOrganization : () => router.push('/subscription')}
             disabled={creating}
           >
             {creating ? (
               <ActivityIndicator color="#000" />
             ) : (
               <>
-                <Ionicons name={user?.is_pro ? "add-circle" : "star"} size={24} color="#000" />
+                <Ionicons name={user?.is_pro_broker ? "add-circle" : "star"} size={24} color="#000" />
                 <Text style={styles.createButtonText}>
-                  {user?.is_pro ? 'Create Organization' : 'Go Pro - Just \u20B92,999/month'}
+                  {user?.is_pro_broker ? 'Create Organization' : 'Go Pro - Just \u20B92,999/month'}
                 </Text>
               </>
             )}
           </TouchableOpacity>
 
-          {!user?.is_pro && (
+          {!user?.is_pro_broker && (
             <TouchableOpacity
               style={styles.browsePlansButton}
               onPress={() => router.push('/subscription')}
@@ -283,7 +283,7 @@ export default function OrganizationScreen() {
         </View>
 
         {/* Invite Section - Owner only */}
-        {user?.role === 'owner' && (
+        {user?.role === 'broker' && (
           <View style={styles.inviteSection}>
             <Text style={styles.sectionTitle}>Invite Employees</Text>
             
@@ -329,7 +329,7 @@ export default function OrganizationScreen() {
               <View style={styles.memberInfo}>
                 <View style={styles.memberNameRow}>
                   <Text style={styles.memberName}>{member.name}</Text>
-                  {member.role === 'owner' && (
+                  {member.role === 'broker' && (
                     <View style={styles.ownerBadge}>
                       <Text style={styles.ownerBadgeText}>Owner</Text>
                     </View>
@@ -337,7 +337,7 @@ export default function OrganizationScreen() {
                 </View>
                 <Text style={styles.memberMobile}>+91 {member.mobile}</Text>
               </View>
-              {user?.role === 'owner' && member.role !== 'owner' && (
+              {user?.role === 'broker' && member.role !== 'broker' && (
                 <TouchableOpacity
                   style={styles.removeButton}
                   onPress={() => handleRemoveMember(member)}
