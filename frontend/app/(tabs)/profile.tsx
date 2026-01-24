@@ -104,10 +104,10 @@ export default function ProfileScreen() {
           <Text style={styles.firmName}>{user?.firm_name}</Text>
           
           {/* Pro Badge */}
-          {user?.is_pro && (
+          {user?.is_pro_broker && (
             <View style={styles.proBadge}>
               <Ionicons name="star" size={14} color="#FFD700" />
-              <Text style={styles.proText}>Pro</Text>
+              <Text style={styles.proText}>Pro Broker</Text>
             </View>
           )}
         </View>
@@ -128,13 +128,13 @@ export default function ProfileScreen() {
           </View>
           <View style={styles.infoItem}>
             <Ionicons name="person" size={20} color="#666" />
-            <Text style={styles.infoText}>{user?.role === 'owner' ? 'Owner' : 'Employee'}</Text>
+            <Text style={styles.infoText}>{user?.role === 'broker' ? 'Broker' : 'Employee'}</Text>
           </View>
         </View>
 
         {/* Menu Items */}
         <View style={styles.menuSection}>
-          {user?.role === 'owner' && (
+          {user?.role === 'broker' && (
             <TouchableOpacity style={styles.menuItem} onPress={handleSubscription}>
               <View style={styles.menuItemLeft}>
                 <View style={[styles.menuIcon, { backgroundColor: 'rgba(255, 215, 0, 0.1)' }]}>
@@ -143,7 +143,7 @@ export default function ProfileScreen() {
                 <View>
                   <Text style={styles.menuItemText}>Subscription</Text>
                   <Text style={styles.menuItemSubtext}>
-                    {user?.is_pro ? 'Pro Plan Active' : 'Upgrade to Pro'}
+                    {user?.is_pro_broker ? 'Pro Plan Active' : 'Upgrade to Pro'}
                   </Text>
                 </View>
               </View>
