@@ -896,19 +896,36 @@ export default function AddPropertyScreen() {
               </View>
             )}
 
-            {/* 3. Property Photos */}
+            {/* 3. Property Photos & Videos */}
             <View style={styles.section}>
-              <Text style={styles.label}>Property Photos *</Text>
+              <View style={styles.mediaSectionHeader}>
+                <Text style={styles.label}>Property Media *</Text>
+                {(photos.length > 0 || videos.length > 0) && (
+                  <TouchableOpacity 
+                    style={styles.viewGalleryButton}
+                    onPress={openMediaGallery}
+                  >
+                    <Text style={styles.viewGalleryText}>
+                      View All ({photos.length + videos.length})
+                    </Text>
+                    <Ionicons name="chevron-forward" size={20} color="#2196F3" />
+                  </TouchableOpacity>
+                )}
+              </View>
+              
+              {/* Photo Buttons */}
+              <Text style={styles.subLabel}>Photos</Text>
               <View style={styles.photoButtons}>
                 <TouchableOpacity style={styles.photoButton} onPress={takePicture}>
                   <Ionicons name="camera" size={24} color="#fff" />
-                  <Text style={styles.photoButtonText}>Take Photo</Text>
+                  <Text style={styles.photoButtonText}>Camera</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.photoButton} onPress={pickImage}>
                   <Ionicons name="images" size={24} color="#fff" />
-                  <Text style={styles.photoButtonText}>From Gallery</Text>
+                  <Text style={styles.photoButtonText}>Gallery</Text>
                 </TouchableOpacity>
               </View>
+              
               {photos.length > 0 && (
                 <ScrollView horizontal style={styles.photoPreviewContainer} showsHorizontalScrollIndicator={false}>
                   {photos.map((photo, index) => (
@@ -929,12 +946,43 @@ export default function AddPropertyScreen() {
                   ))}
                 </ScrollView>
               )}
+              
               {photosWithoutLocation > 0 && photos.length > 0 && (
                 <Text style={styles.locationWarning}>
                   {photosWithoutLocation} out of {photos.length} photo(s) do not have location data
                 </Text>
               )}
               {errors.photos && <Text style={styles.errorText}>{errors.photos}</Text>}
+              
+              {/* Video Section */}
+              <Text style={[styles.subLabel, { marginTop: 16 }]}>Videos (Optional)</Text>
+              <View style={styles.photoButtons}>
+                <TouchableOpacity style={[styles.photoButton, styles.videoButton]} onPress={pickVideo}>
+                  <Ionicons name="videocam" size={24} color="#fff" />
+                  <Text style={styles.photoButtonText}>Add Videos</Text>
+                </TouchableOpacity>
+              </View>
+              
+              {videos.length > 0 && (
+                <ScrollView horizontal style={styles.photoPreviewContainer} showsHorizontalScrollIndicator={false}>
+                  {videos.map((video, index) => (
+                    <View key={index} style={styles.photoPreview}>
+                      <View style={styles.videoThumbnail}>
+                        <Ionicons name="play-circle" size={40} color="rgba(255,255,255,0.9)" />
+                      </View>
+                      <TouchableOpacity
+                        style={styles.photoRemove}
+                        onPress={() => removeVideo(index)}
+                      >
+                        <Ionicons name="close-circle" size={24} color="#ff4444" />
+                      </TouchableOpacity>
+                      <View style={styles.videoBadge}>
+                        <Text style={styles.videoBadgeText}>Video</Text>
+                      </View>
+                    </View>
+                  ))}
+                </ScrollView>
+              )}
             </View>
 
             {/* 4. Builder Details */}
