@@ -1,0 +1,49 @@
+-- ============================================================================
+-- SUPER ADMIN SETUP
+-- Run this AFTER running supabase_schema_v2.sql
+-- Replace YOUR_EMAIL with your actual email address
+-- ============================================================================
+
+-- Step 1: Create your Super Admin account
+-- Replace 'your-email@company.com' with your actual email
+INSERT INTO public.admin_users (email, name, role, is_active)
+VALUES ('your-email@company.com', 'Super Admin', 'super_admin', true);
+
+-- ============================================================================
+-- HOW TO LOGIN AS SUPER ADMIN:
+-- ============================================================================
+-- 
+-- Option A: Magic Link (Recommended - Easier)
+-- 1. In Supabase Dashboard → Authentication → Providers → Email
+-- 2. Enable "Magic Link" (should be enabled by default)
+-- 3. Your admin dashboard will have a login page where you enter email
+-- 4. You'll receive a magic link to login - no password needed!
+--
+-- Option B: Email + Password
+-- 1. In Supabase Dashboard → Authentication → Users → "Add User"
+-- 2. Enter your email and a password
+-- 3. This creates an entry in auth.users
+-- 4. Note: This is separate from admin_users table - we use both:
+--    - auth.users: For Supabase authentication
+--    - admin_users: For admin role & permissions
+--
+-- ============================================================================
+-- IMPORTANT SECURITY NOTES:
+-- ============================================================================
+--
+-- 1. The admin_users table does NOT contain passwords
+--    - Passwords are managed by Supabase Auth (auth.users table)
+--    - admin_users just stores role and permissions info
+--
+-- 2. Admin Dashboard Authentication Flow:
+--    a) Admin enters email → magic link sent
+--    b) Admin clicks link → logged into Supabase Auth
+--    c) Dashboard checks if email exists in admin_users table
+--    d) If yes → show dashboard based on role permissions
+--    e) If no → access denied
+--
+-- 3. This two-table approach means:
+--    - Even if someone creates a Supabase auth account, 
+--      they can't access admin unless YOU add them to admin_users
+--
+-- ============================================================================
