@@ -59,8 +59,8 @@ export interface OrganizationMember {
 export interface Pricing {
   id: string;
   city: string;
-  pro_owner_monthly: number;
-  pro_owner_annual: number;
+  pro_broker_monthly: number;
+  pro_broker_annual: number;
   employee_tier_1: number;
   employee_tier_2: number;
   employee_tier_3: number;
