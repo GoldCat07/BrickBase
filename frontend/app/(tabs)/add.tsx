@@ -65,6 +65,10 @@ interface PhotoData {
   location?: Location.LocationObject;
 }
 
+interface VideoData {
+  uri: string;
+}
+
 export default function AddPropertyScreen() {
   const { user } = useAuth();
   const params = useLocalSearchParams();
@@ -79,6 +83,7 @@ export default function AddPropertyScreen() {
   const [propertyCategory, setPropertyCategory] = useState<PropertyCategory | ''>('');
   const [propertyType, setPropertyType] = useState<PropertyType | ''>('');
   const [photos, setPhotos] = useState<PhotoData[]>([]);
+  const [videos, setVideos] = useState<VideoData[]>([]);
   const [photosWithoutLocation, setPhotosWithoutLocation] = useState<number>(0);
   const [builders, setBuilders] = useState<BuilderInfo[]>([{ name: '', phoneNumber: '', countryCode: '+91' }]);
   const [caseType, setCaseType] = useState<CaseType | ''>('');
