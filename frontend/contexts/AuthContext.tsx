@@ -66,7 +66,7 @@ const profileToUser = (profile: Profile): User => ({
   city: profile.city,
   email: profile.email,
   role: profile.role,
-  is_pro: profile.is_pro,
+  is_pro_broker: profile.is_pro_broker,
   organization_id: profile.organization_id,
   profile_photo: profile.profile_photo,
   subscription_status: profile.subscription_status,
