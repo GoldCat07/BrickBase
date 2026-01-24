@@ -1678,12 +1678,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginRight: 4,
   },
-  subLabel: {
-    color: '#aaa',
-    fontSize: 13,
-    marginBottom: 8,
-    marginTop: 4,
-  },
   videoButton: {
     backgroundColor: '#6B21A8',
     flex: 1,
