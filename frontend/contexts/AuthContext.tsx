@@ -11,8 +11,8 @@ interface User {
   firm_name: string | null;
   city: string | null;
   email: string | null;
-  role: 'owner' | 'employee';
-  is_pro: boolean;
+  role: 'broker' | 'employee';
+  is_pro_broker: boolean;
   organization_id: string | null;
   profile_photo: string | null;
   subscription_status: string | null;
