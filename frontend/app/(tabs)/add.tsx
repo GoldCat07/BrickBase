@@ -498,6 +498,9 @@ export default function AddPropertyScreen() {
     setVideos(videos.filter((_, i) => i !== index));
   };
 
+  // Cover photo index
+  const [coverPhotoIndex, setCoverPhotoIndex] = useState(0);
+
   // Open media gallery
   const openMediaGallery = () => {
     const photoUris = photos.map(p => p.uri);
@@ -509,6 +512,8 @@ export default function AddPropertyScreen() {
         photos: JSON.stringify(photoUris),
         videos: JSON.stringify(videoUris),
         title: 'Property Media',
+        coverIndex: coverPhotoIndex.toString(),
+        editMode: 'true',
       },
     });
   };
