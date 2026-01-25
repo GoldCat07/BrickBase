@@ -1,335 +1,164 @@
 <analysis>
-<original_problem_statement>
-The user wants to build a comprehensive real estate mobile application with an accompanying web-based admin dashboard.
+
+**original_problem_statement**: The user's primary goal is to build a real estate mobile application using Supabase as a complete Backend-as-a-Service (BaaS), eliminating the need for a separate, self-hosted backend server. The application should feature a mobile app for brokers and employees and a future web-based admin dashboard.
 
 **PRODUCT REQUIREMENTS:**
 
-**Mobile App:**
-1.  **Authentication:**
-    *   Mobile number and OTP-based sign-up/login.
-    *   A static OTP of  should be used for testing.
-    *   Request location access before the sign-up form to auto-fill the user's city.
-    *   Sign-up form must collect: Name, Firm Name, City of Operations, and Email.
-2.  **Organization & Subscriptions:**
-    *   A tiered subscription model: Pro Owners can create organizations and add employees.
-    *   Non-pro users are prompted with an upsell screen (Go Pro) if they try to create an organization.
-    *   **Pricing (to be controlled from the backend, not hardcoded):**
-        *   **Pro Owner Plan:** ₹3599/month (or ₹2999/month if billed annually at ₹35990).
-        *   **Employee Seats (paid by owner):**
-            *   Up to 7 employees: ₹399/user.
-            *   8-14 employees: ₹759/user.
-            *   Above 14 employees: ₹1299/user.
-    *   Pro owners can generate and share an organization invite link.
-3.  **Employee Onboarding:**
-    *   The invite link should use deep linking: open the app if installed, or redirect to the App/Play Store if not. After installation, the app should open and process the invite.
-    *   Employees sign up with their mobile and OTP.
-    *   A Congratulations pop-up will show they've been invited to the specific organization.
-    *   The firm name in the employee's profile should be pre-filled and non-editable.
-    *   The organization owner should receive a push notification when a new employee joins.
-4.  **Organization Management:**
-    *   Owners can view and remove members.
-    *   Employees can only view members.
-    *   The member list should display a profile photo, name, and mobile number.
-    *   All users should be able to add a profile photo.
-5.  **Payment & Security:**
-    *   Use Razorpay for payments (to be implemented later).
-    *   If a payment fails, a persistent, blocking pop-up should appear on every app launch until the payment is successful.
-    *   A mobile number should only be logged into one device at a time.
+**Mobile App (Broker/Employee Facing):**
+1.  **Authentication:** Supabase phone OTP-based sign-up/login. A static OTP of  is to be used for development.
+2.  **Roles & Naming:**
+    *   The primary user role is Broker (formerly Owner).
+    *   Brokers can upgrade to a Pro Broker subscription.
+3.  **Organizations:** Pro Brokers can create organizations and invite employees.
+4.  **Property Management:**
+    *   Brokers can add and manage property listings through a detailed form.
+    *   The property form must support uploading multiple photos and videos.
+5.  **Media Gallery:**
+    *   The Add Property screen should have a View Gallery button.
+    *   This button should navigate to a new screen displaying all photos and videos for that property in a 2-column grid.
+    *   The gallery must have separate, collapsible sections for Videos and Photos.
 
-**Admin Dashboard (Web):**
-1.  **Backend:** Use Supabase (PostgreSQL) for the database, auth, and storage. The dashboard will be the control panel for the entire application.
-2.  **UI/UX:**
-    *   A spreadsheet-like view of all Pro Owners.
-    *   Columns: Name, Mobile Number, Firm Name, Subscription Status.
-    *   The list should be filterable by city and sign-up date.
-    *   Clicking on a user row opens a detailed view to manage their subscription, pro status, and the number of employee seats.
-    *   Admins should also be able to view properties associated with a firm from this view.
-3.  **Dynamic Pricing Control:**
-    *   A section to manage plan pricing on a city-by-city basis for a predefined list of cities (Faridabad, Gurugram, Noida, Delhi, etc.).
-    *   Include categories for 'Other Cities' and 'International' to manage pricing for users outside the specified list.
-4.  **Database:** All database tables should have  and  timestamps.
-
-</original_problem_statement>
+**Admin Dashboard (Web - Future Task):**
+1.  **Role-Based Access Control:**
+    *   Three admin roles: , , .
+    *   The Super Admin (the user) will be created via a manual SQL script.
+    *   The Super Admin must be able to dynamically create new roles and assign/revoke specific permissions (e.g., ability to change pricing).
+2.  **In-App Messaging & Remote Config:**
+    *   The Super Admin needs a system to send dynamic in-app messages or pop-ups to users.
+    *   This system should allow for custom content (text, images) and targeting (e.g., by region). The goal is to update the app's content and communicate with users without requiring an app store update.
 
 **User's preferred language**: English
 
 **what currently exists?**
-A full-stack application with an Expo frontend and FastAPI backend has been developed. The backend database has been successfully migrated to Supabase (PostgreSQL). The core mobile authentication flow (OTP login, signup with location) is implemented. Backend APIs for users, organizations, subscriptions, and dynamic city-based pricing are complete and have been tested. The frontend includes screens for the auth flow and placeholders for profile, organization, and subscription management. The agent resolved a web-build issue with  and fixed a backend bug in an admin API endpoint.
+The project has undergone a major architectural pivot from a FastAPI/MongoDB backend to a Supabase Backend-as-a-Service (BaaS) model. The agent has generated a complete, versioned SQL schema () that defines all necessary tables, roles, Row Level Security (RLS) policies, and storage buckets. The frontend  and authentication screens have been refactored to use Supabase's phone OTP auth directly. A global renaming from Owner to Broker has been performed across relevant frontend files. Work has begun on a new media gallery feature for property listings.
 
 **Last working item**:
-- Last item agent was working: The agent was troubleshooting a failed to parse manifest JSON error reported by the user when trying to load the app in Expo Go.
-- Status: USER VERIFICATION PENDING
-- Agent Testing Done: Y
-- Which testing method agent to use? The user needs to manually re-test loading the app on their device. If the issue persists, the next agent should check 
-  Usage: expo [command] [options]
-
-  Options:
-  
-    -V, --version                     output the version number
-    --non-interactive                 Fail, if an interactive prompt would be required to continue.
-    -h, --help                        output usage information
-  
-  Commands:
-
-    init [name]                       Create a new Expo project
-    start [path]                      Start a local dev server for the app
-    start:web [path]                  Start a Webpack dev server for the web app
-    export [path]                     Export the static files of the app for hosting it on a web server
-    install [packages...]             Install a module or other package to a project
-    run:android [path]                Run the Android app binary locally
-    run:ios [path]                    Run the iOS app binary locally
-    send [path]                       Share the project's URL to an email address
-
-    login                             Login to an Expo account
-    logout                            Logout of an Expo account
-    register                          Sign up for a new Expo account
-    whoami                            Return the currently authenticated account
-
-    client:install:ios                Install Expo Go for iOS on the simulator
-    client:install:android            Install Expo Go for Android on a connected device or emulator
-
-    config [path]                     Show the project config
-    doctor [path]                     Diagnose issues with the project
-    upgrade [sdk-version]             Upgrade the project packages and config for the given SDK version
-
-    customize:web [path]              Eject the default web files for customization
-    prebuild [path]                   Create native iOS and Android project files before building natively.
-                                      Learn more: https://docs.expo.dev/workflow/customizing/
-
-    build:web [path]                  Build the web app for production
-
-    credentials:manager [path]        Superseded by eas credentials in eas-cli
-
-    url [path]                        Log a URL for opening the project in Expo Go
-    url:ipa [path]                    Log the download URL for the standalone iOS binary
-    url:apk [path]                    Log the download URL for the standalone Android binary
-
-    webhooks [path]                   List all webhooks for a project
-    webhooks:add [path]               Add a webhook to a project
-    webhooks:remove [path]            Delete a webhook
-    webhooks:update [path]            Update an existing webhook
-
-    build:ios [path]                  Superseded by eas build in eas-cli
-    build:android [path]              Superseded by eas build in eas-cli
-    build:status [path]               Superseded by eas build:list in eas-cli
-    eject [path]                      Superseded by expo prebuild
-    fetch:ios:certs [path]            Superseded by eas credentials in eas-cli
-    fetch:android:keystore [path]     Superseded by eas credentials in eas-cli
-    fetch:android:hashes [path]       Superseded by eas credentials in eas-cli
-    fetch:android:upload-cert [path]  Superseded by eas credentials in eas-cli
-    publish [path]                    Superseded by eas update in eas-cli
-    publish:set [path]                Superseded by eas update:republish in eas-cli
-    publish:rollback [path]           Superseded by eas update:republish in eas-cli
-    publish:history [path]            Superseded by eas update:list in eas-cli
-    publish:details [path]            Superseded by eas update:view in eas-cli
-    push:android:upload [path]        Superseded by eas credentials in eas-cli
-    push:android:show [path]          Superseded by eas credentials in eas-cli
-    push:android:clear [path]         Superseded by eas credentials in eas-cli
-    upload:android [path]             Superseded by eas submit in eas-cli
-    upload:ios [path]                 Superseded by eas submit in eas-cli
-    client:ios [path]                 Superseded by Expo Dev Clients
-
-[13:22:29]   Run a command with --help for more info 💡
-[13:22:29]     $ expo start --help
-[13:22:29] logs and consider using the .
-- User Testing Done: N
+    - Last item agent was working: Implementing the UI for the Photos/Videos Gallery feature on the Add Property screen (). The agent added state management and picker functions for videos, created a placeholder for the new gallery screen (), and refactored the UI to include a View Gallery button. This was followed by a cycle of debugging and fixing several TypeScript errors that arose from the changes.
+    - Status: IN PROGRESS
+    - Agent Testing Done: N
+    - Which testing method agent to use? manual testing by screenshot tool
+    - User Testing Done: N
 
 **All Pending/In progress Issue list**:
-  - Issue 1: failed to parse manifest JSON error on Expo Go (P0)
-    - Attempted fixes: The agent verified that the manifest URL serves correct JSON when requested with appropriate headers. The  was consulted. Crucially, backend logs showed recent API calls from the user's phone number, indicating the user *was* able to connect successfully at least once. The agent concluded it was likely a transient network error or a client-side issue with the Expo Go app.
-    - Next debug checklist:
-        1.  Await user confirmation on whether restarting Expo Go and retrying has resolved the issue.
-        2.  If the problem persists, inspect  logs for the 
-  Usage: expo [command] [options]
-
-  Options:
-  
-    -V, --version                     output the version number
-    --non-interactive                 Fail, if an interactive prompt would be required to continue.
-    -h, --help                        output usage information
-  
-  Commands:
-
-    init [name]                       Create a new Expo project
-    start [path]                      Start a local dev server for the app
-    start:web [path]                  Start a Webpack dev server for the web app
-    export [path]                     Export the static files of the app for hosting it on a web server
-    install [packages...]             Install a module or other package to a project
-    run:android [path]                Run the Android app binary locally
-    run:ios [path]                    Run the iOS app binary locally
-    send [path]                       Share the project's URL to an email address
-
-    login                             Login to an Expo account
-    logout                            Logout of an Expo account
-    register                          Sign up for a new Expo account
-    whoami                            Return the currently authenticated account
-
-    client:install:ios                Install Expo Go for iOS on the simulator
-    client:install:android            Install Expo Go for Android on a connected device or emulator
-
-    config [path]                     Show the project config
-    doctor [path]                     Diagnose issues with the project
-    upgrade [sdk-version]             Upgrade the project packages and config for the given SDK version
-
-    customize:web [path]              Eject the default web files for customization
-    prebuild [path]                   Create native iOS and Android project files before building natively.
-                                      Learn more: https://docs.expo.dev/workflow/customizing/
-
-    build:web [path]                  Build the web app for production
-
-    credentials:manager [path]        Superseded by eas credentials in eas-cli
-
-    url [path]                        Log a URL for opening the project in Expo Go
-    url:ipa [path]                    Log the download URL for the standalone iOS binary
-    url:apk [path]                    Log the download URL for the standalone Android binary
-
-    webhooks [path]                   List all webhooks for a project
-    webhooks:add [path]               Add a webhook to a project
-    webhooks:remove [path]            Delete a webhook
-    webhooks:update [path]            Update an existing webhook
-
-    build:ios [path]                  Superseded by eas build in eas-cli
-    build:android [path]              Superseded by eas build in eas-cli
-    build:status [path]               Superseded by eas build:list in eas-cli
-    eject [path]                      Superseded by expo prebuild
-    fetch:ios:certs [path]            Superseded by eas credentials in eas-cli
-    fetch:android:keystore [path]     Superseded by eas credentials in eas-cli
-    fetch:android:hashes [path]       Superseded by eas credentials in eas-cli
-    fetch:android:upload-cert [path]  Superseded by eas credentials in eas-cli
-    publish [path]                    Superseded by eas update in eas-cli
-    publish:set [path]                Superseded by eas update:republish in eas-cli
-    publish:rollback [path]           Superseded by eas update:republish in eas-cli
-    publish:history [path]            Superseded by eas update:list in eas-cli
-    publish:details [path]            Superseded by eas update:view in eas-cli
-    push:android:upload [path]        Superseded by eas credentials in eas-cli
-    push:android:show [path]          Superseded by eas credentials in eas-cli
-    push:android:clear [path]         Superseded by eas credentials in eas-cli
-    upload:android [path]             Superseded by eas submit in eas-cli
-    upload:ios [path]                 Superseded by eas submit in eas-cli
-    client:ios [path]                 Superseded by Expo Dev Clients
-
-[13:22:29]   Run a command with --help for more info 💡
-[13:22:29]     $ expo start --help
-[13:22:29] service during the user's connection attempt for new clues.
-        3.  Re-examine  for any misconfigurations related to web bundling or tunneling that could cause this.
-    - Why fix this issue and what will be achieved with the fix?: This is a critical blocker. The user cannot test or use the mobile app until this connection issue is resolved.
-    - Status: USER VERIFICATION PENDING
-    - Is recurring issue? Y
-    - Should Test frontend/backend/both after fix? The user needs to test the frontend connection on their device.
-    - Blocked on other issue: Blocked on user feedback.
+  None. The previous TypeScript errors were resolved. The primary focus is on completing the in-progress task.
 
 **In progress Task List**:
-  None.
+  - Task 1:  Complete the Photos/Videos Gallery UI (P0)
+     - Where to resume: 
+        1. Implement the navigation logic. The View Gallery button in  needs to be wired up using  to navigate to the  screen. The photos and videos state should be passed as route parameters.
+        2. Build the UI for the  screen. This screen is currently a placeholder and needs to be implemented to meet user requirements: a 2-column grid layout, and two separate, collapsible sections for Videos (using ) and Photos.
+     - What will be achieved with this?: Users will be able to add both photos and videos to a property and view them in an organized, full-screen gallery, which is a key feature for a real estate app.
+     - Status:  IN PROGRESS
+     - Should Test frontend/backend/both after fix?: frontend
+     - Blocked on something: User must run the SQL schema first for the underlying data structure to exist.
 
 **Upcoming and Future Tasks**
 
-**Upcoming Tasks (Mobile App):**
-- **P0: Implement Deep Linking:** Set up the invite link flow to open the app (or App Store) and pass invite data. (File: , potentially using ).
-- **P1: Build Subscription Purchase UI:** Design and implement the UI flow for an owner to purchase multiple employee seats. (File: New or in ).
-- **P2: Implement Push Notifications:** Set up notifications to alert an owner when a new employee joins their organization. (Requires ).
-- **P2: User Profile Photo Upload:** Allow users to upload and display a profile photo. (File: , requires  and Supabase Storage).
-- **P3: Enforce Single Device Login:** Implement logic to ensure a user can only be logged in on one device at a time.
+**Upcoming Tasks:**
+- **P0: User-Side Supabase Setup (BLOCKER):** The user must execute the generated SQL scripts ( and ) in their Supabase project's SQL Editor. This is a critical prerequisite for all further development.
+- **P1: Full Frontend Supabase Integration:** Audit the entire frontend application (especially property detail views) to ensure all data fetching and mutation logic is refactored to use  and no remnants of the old FastAPI client exist.
+- **P2: Implement In-App Messaging UI:** Create the AirPods-style pop-up component that fetches and displays content from the  table in Supabase. Implement the logic to trigger its display.
 
-**Future Tasks (Admin Dashboard):**
-- **P0: Build the Admin Dashboard:** Create a new web application for the admin dashboard using a full-stack agent.
-- **P1: Implement All Admin Features:**
-    - User spreadsheet with filtering/sorting.
-    - Detailed user view for subscription management.
-    - City-wise pricing control interface.
-    - View to see properties associated with a firm.
-- **P2: Real Payment Integration:** Replace the mock payment system with a full Razorpay integration, including webhooks for subscription status updates.
+**Future Tasks:**
+- **Build the Admin Dashboard:** Create a new web application for the admin dashboard with its own authentication (email/password).
+- **Implement Dynamic Admin Permissions:** The dashboard must allow the  to create/edit roles and their permissions, with the UI dynamically adjusting based on the logged-in admin's permissions.
+- **Implement Deep Linking:** Set up the organization invite link flow.
+- **Implement Real Payment Integration:** Replace the mock payment system with Razorpay.
 
 **Completed work in this session**
-- **Backend (FastAPI - ):**
-    - Integrated Supabase as the PostgreSQL database.
-    - Created database models (Pydantic) for Users, Organizations, Subscriptions, and Pricing.
-    - Implemented a complete mobile authentication API (, , ).
-    - Developed APIs for managing Profile, Organization, and Subscriptions.
-    - Built a dynamic, city-based pricing system initialized at startup ().
-    - Created admin APIs to fetch users and manage pricing ().
-    - Fixed a bug causing  serialization errors in the admin pricing endpoint.
-- **Frontend (Expo - ):**
-    - Created a new file-based routing structure for the authentication flow ().
-    - Implemented screens for OTP Login, OTP Verification, and a new Signup form that captures location.
-    - Added placeholder screens for Profile, Organization, and Subscriptions.
-    - Established the Supabase client connection ().
-    - Resolved a critical web build failure caused by  by conditionally preventing it from loading on the web platform.
-- **Testing:**
-    - Performed extensive  tests on all new backend endpoints to verify functionality.
-    - Used the  to validate the new frontend auth flow UI.
+- **Architecture Pivot:** Successfully transitioned the project's architecture from a FastAPI/MongoDB stack to a pure Supabase BaaS model. The old backend code in  is now obsolete.
+- **Supabase Schema Generation:**
+    - Created a comprehensive V2 schema in . This includes tables for profiles, organizations, properties, pricing, and a full admin role/permission system.
+    - Corrected a critical Row Level Security (RLS) vulnerability in the  table.
+    - Created a separate script, , for the user to create their super admin account.
+- **Frontend Refactoring:**
+    - Updated  and auth screens (, , ) to use Supabase's built-in phone authentication directly, removing the dependency on a custom backend.
+    - Performed a global search-and-replace to update terminology from Owner to Broker in files like , , and the auth screens.
+    - Created  to centralize Supabase interactions.
+- **Feature Implementation (In Progress):**
+    - Began work on the Media Gallery by creating  and installing .
+    - Reworked the Add Property screen () to support video uploads and add a button to navigate to the new gallery.
+- **Bug Fixes:**
+    - Resolved multiple TypeScript errors in  related to optional chaining (), nullish coalescing (), and duplicate style properties that arose during refactoring.
 
 **Earlier issues found/mentioned but not fixed**
-None. All identified issues (maps on web, admin API bug) were addressed during the session.
+   - The initial issue failed to parse manifest JSON reported by the user is now considered obsolete, as the architecture has fundamentally changed, removing the backend server that was part of the original setup.
 
 **Known issue recurrence from previous fork**
-N/A
+  - N/A
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
-- **Tech Stack:** Expo (React Native), FastAPI (Python), Supabase (PostgreSQL).
-- **Authentication:** JWT-based stateless authentication flow initiated by a mobile OTP verification.
-- **Routing:** File-based routing using .
-- **Database:** Supabase for PostgreSQL database and user management.
-- **API Design:** RESTful API built with FastAPI and Pydantic for data validation.
-- **Dynamic Pricing:** Pricing logic is handled on the backend and fetched by the client, allowing for changes without an app update.
+- **Backend-as-a-Service (BaaS):** The entire backend is managed by Supabase. The frontend communicates directly with Supabase APIs.
+- **Database:** Supabase (PostgreSQL).
+- **Authentication:** Supabase Auth with Phone + OTP.
+- **Security:** PostgreSQL Row Level Security (RLS) to control data access per user.
+- **Frontend:** Expo (React Native) with TypeScript.
+- **Routing:**  (file-based).
+- **Video Handling:**  for video-related functionalities.
 
 **key DB schema**
-- **users:** {id, mobile, name, firm_name, city, email, created_at, updated_at, organization_id}
-- **organizations:** {id, name, owner_id, created_at, updated_at}
-- **subscriptions:** {id, user_id, plan_type, status, start_date, end_date, employee_seats}
-- **pricing:** {city, pro_owner_monthly, pro_owner_annual, employee_tier_1, ...}
+- **profiles:** {id (FK to auth.users), mobile, name, firm_name, city, email, role ('broker', 'employee'), is_pro_broker}
+- **organizations:** {id, name, owner_id (FK to profiles)}
+- **properties:** {id, title, description, photos (jsonb[]), videos (jsonb[]), ...}
+- **app_roles:** {role_name (PK - 'super_admin', 'admin'), ...}
+- **role_permissions:** {id, role_name, permission_key, enabled}
+- **in_app_messages:** {id, title, content, target_users, ...}
 
 **changes in tech stack**
-The project's database was migrated from an implied MongoDB to Supabase (PostgreSQL).
+- **Complete backend removal:** The FastAPI server and MongoDB database have been entirely replaced by Supabase (PostgreSQL).
 
 **All files of reference**
-- : Contains the entire backend application logic.
-- : The starting screen for the new mobile authentication flow.
-- : The new user registration form.
-- : Configures the Supabase client for the frontend.
-- : Stores the critical Supabase credentials.
-- : Contains a summary of backend testing performed via .
-- : Documents tasks deferred for later implementation.
+- : **Crucial.** The complete database schema. The user must run this.
+- : **Crucial.** Script for user to create their own super admin account.
+- : The file where the most recent UI work was done for the media gallery.
+- : The new, placeholder screen that needs to be implemented.
+- : The central service for all frontend-to-Supabase communication.
+- : The refactored authentication context.
+
+**Areas that need refactoring**:
+- The entire application needs to be audited to ensure all API calls are routed through  and no legacy code remains. The  screen is a likely candidate for needing a refactor.
+
+**key api endpoints**
+- N/A. The frontend now communicates directly with the Supabase client SDK, not via REST API endpoints.
 
 **Critical Info for New Agent**
-- **Primary Blocker:** The user is experiencing a failed to parse manifest JSON error in Expo Go. However, backend logs show the user has successfully connected and used the app's APIs. The immediate next step is to get confirmation from the user if restarting their Expo Go app and re-scanning the QR code resolves the problem. Do not start new feature work until this is resolved.
-- **Database:** The application now uses Supabase (PostgreSQL), not MongoDB. All backend logic in  is built around this.
-- **Testing OTP:** The backend is hardcoded to accept  as a valid OTP for any number, which is useful for testing the auth flow.
+- **ARCHITECTURE PIVOT:** The project is now a Supabase BaaS application. **Do not use or refer to the  directory.** All logic must now be implemented in the frontend communicating directly with Supabase.
+- **USER ACTION REQUIRED (BLOCKER):** The immediate blocker is that the user **must** run the SQL scripts  and  in their Supabase project. You cannot test any data-related features until this is done. Confirm with the user that they have completed this step before proceeding.
+- **CURRENT TASK:** Your first coding task is to finish the media gallery feature. This involves implementing the navigation logic from  to  and then building the UI of the gallery screen itself.
+- **NAMING CONVENTION:** The role previously known as Owner is now Broker. Ensure all new code and user-facing text adheres to this.
 
 **documents created in this job**
+-  (outdated, superseded by v2)
+- 
+-  (current version)
 - 
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User (Message 110):** Reports failed to parse manifest JSON error in the Expo Go app. (Status: In Progress - agent has responded, awaiting user feedback).
-2.  **User (Message 11):** Provided a list of cities for pricing and requested a feature to view a firm's properties in the admin dashboard. (Status: Completed - requirements noted).
-3.  **User (Message 8):** Clarified the requirement for a persistent pop-up on payment failure. (Status: Completed - requirement noted).
-4.  **User (Message 5):** Provided Supabase credentials, confirmed the deep linking flow, and asked for help with the payment UI. (Status: Completed - agent implemented Supabase and noted other requirements).
+1.  **User (Message 96):** Confirmed they have a fresh environment and asked if they should run  directly. (Status: Completed - Agent confirmed this is the correct action).
+2.  **User (Message 95):** Agreed to proceed with the gallery UI enhancement. (Status: In Progress).
+3.  **User (Message 62):** Provided key decisions for admin auth (email/magic link), confirmed no phone for admins, and elaborated on the vision for the dynamic in-app pop-up system. (Status: Completed - Agent incorporated this into schema v2).
+4.  **User (Message 59):** Provided critical feedback and new requirements: fixing a major RLS security gap, renaming Owner to Broker, detailing the media gallery UI, and outlining a comprehensive admin role/permission system. (Status: Completed - Agent implemented all schema changes and started the gallery UI).
 
 **Project Health Check:**
-- **Broken:** The connection from the user's Expo Go app to the development server is unreliable, preventing testing.
-- **Mocked:** The entire payment system is a mock. The OTP verification uses a static test code ().
+- **Broken:** The application's data layer is non-functional until the user runs the provided SQL scripts in their Supabase project. The frontend has been partially refactored, but many parts may still be pointing to non-existent backend logic.
+- **Mocked:** The OTP system uses a static  code for development. The payment system is not implemented.
 
 **3rd Party Integrations**
-- **Supabase:** Used for Database (Postgres) and Auth. Requires User API Key.
-- **Razorpay:** Planned for payment processing. Will require User API Key.
+- **Supabase:** Used for Database (Postgres), Auth, and Storage. Requires User API Key (which is in the  file).
 
 **Testing status**
-- Testing agent used after significant changes: NO
-- Troubleshoot agent used after agent stuck in loop: YES (For the manifest/tunnel issue).
-- Test files created: None.
-- Known regressions: None.
+  - Testing agent used after significant changes: NO
+  - Troubleshoot agent used after agent stuck in loop: NO
+  - Test files created: []
+  - Known regressions: The entire application is in a state of flux due to the architectural migration. Most features outside the auth flow are likely broken until the frontend is fully refactored.
 
 **Credentials to test flow:**
-- **OTP:** Use  to verify any mobile number.
+- **Mobile App OTP:** Use  to verify any mobile number during login.
 
 **What agent forgot to execute**
-The agent correctly identified and deferred several features to focus on the core MVP. Nothing was forgotten; tasks like push notifications, deep linking, and the full admin dashboard were intentionally placed in  as per the plan.
+The agent has correctly followed the user's direction. The key is that many previous tasks and plans became obsolete due to the user's decision to pivot to a Supabase BaaS architecture. All subsequent work has been aligned with this new direction.
 
 </analysis>
-<SYS_PROMPT_SEPARATOR>
-<workspace_dir>
-/app
-</workspace_dir>
-
