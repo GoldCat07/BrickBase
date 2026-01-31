@@ -176,9 +176,33 @@ export default function AddPropertyScreen() {
     useCallback(() => {
       if (!editPropertyId) {
         resetForm();
+        // Check property limit when screen is focused
+        checkPropertyLimit();
       }
     }, [editPropertyId])
   );
+
+  // Check if user can add more properties
+  const checkPropertyLimit = async () => {
+    if (!user?.id) return;
+    
+    try {
+      setCheckingLimit(true);
+      const result = await propertyService.checkPropertyLimit(user.id);
+      
+      setPropertyLimit(result.limit);
+      setCurrentPropertyCount(result.currentCount);
+      
+      if (!result.canAdd && !result.isProBroker) {
+        setShowLimitModal(true);
+      }
+    } catch (error) {
+      console.error('Error checking property limit:', error);
+      // Default to allowing if check fails
+    } finally {
+      setCheckingLimit(false);
+    }
+  };
 
   // Update price unit when case type changes
   useEffect(() => {
