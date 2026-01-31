@@ -33,14 +33,15 @@ import {
   AddressInfo,
   ImportantFile,
   Property,
+  FacingDirection,
   RESIDENTIAL_PROPERTY_TYPES,
   COMMERCIAL_PROPERTY_TYPES,
   CASE_TYPES,
   AGE_TYPES,
   SIZE_UNITS,
+  FACING_DIRECTIONS,
   MONTHS,
 } from '../../types/property';
-import { FacingDirection, FACING_DIRECTIONS } from '../../lib/supabase';
 import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import api from '../../lib/api';
 import { setNewPropertyAdded } from '../../lib/cache';
