@@ -63,6 +63,7 @@ export interface Property {
   floors?: FloorEntry[]; // New multiple floors
   price?: number;
   priceUnit?: PriceUnit;
+  facing?: FacingDirection; // Property facing direction
   builderId?: string;
   builderName?: string;
   builderPhone?: string;
