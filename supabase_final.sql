@@ -127,7 +127,7 @@ CREATE TABLE public.profiles (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-COMMENT ON COLUMN public.profiles.is_pro_broker IS 'Computed: TRUE if has active pro subscription OR admin_granted_pro = true';
+COMMENT ON COLUMN public.profiles.is_pro_broker IS 'Computed: TRUE if has active pro subscription OR admin_granted_pro is true';
 COMMENT ON COLUMN public.profiles.admin_granted_pro IS 'Manual override by admin. Set via service_role to grant pro without subscription.';
 COMMENT ON COLUMN public.profiles.admin_pro_notes IS 'Optional: Why this user was granted pro manually (e.g., "Paid via UPI on 2025-01-15")';
 
