@@ -3,36 +3,30 @@
 // Uses Supabase Auth for authentication
 
 import { supabase, Profile, Organization, OrganizationMember, Pricing, Subscription, Property, InAppMessage, AppConfig } from './supabase';
-import * as Crypto from 'expo-crypto';
 
 // ============================================================================
-// AUTH SERVICES (Using Supabase Auth)
+// AUTH SERVICES (Using Supabase Auth with Twilio)
 // ============================================================================
-
-const TEST_OTP = '000000'; // Static OTP for development testing
 
 export const authService = {
   /**
-   * Send OTP to mobile number using Supabase Auth
-   * For development: accepts any OTP (000000)
-   * For production: uses Twilio via Supabase
+   * Send OTP to mobile number using Supabase Auth (Twilio)
    */
   async sendOTP(mobile: string, countryCode: string = '+91'): Promise<void> {
     const cleanMobile = mobile.replace(/\D/g, '');
     const fullPhone = `${countryCode}${cleanMobile}`;
     
-    // Use Supabase Auth phone OTP
+    // Use Supabase Auth phone OTP (sends via Twilio)
     const { error } = await supabase.auth.signInWithOtp({
       phone: fullPhone,
     });
     
-    // In development, we accept 000000 regardless of Supabase response
-    // Supabase might not send SMS in development mode
-    if (error && !error.message.includes('rate limit')) {
-      console.warn('Supabase OTP warning:', error.message);
+    if (error) {
+      console.error('OTP send error:', error.message);
+      throw new Error(error.message);
     }
     
-    console.log(`OTP sent to ${fullPhone}. Use ${TEST_OTP} for testing.`);
+    console.log(`OTP sent to ${fullPhone}`);
   },
 
   /**
@@ -49,33 +43,7 @@ export const authService = {
     const cleanMobile = mobile.replace(/\D/g, '');
     const fullPhone = `${countryCode}${cleanMobile}`;
     
-    // For development: accept 000000 as valid OTP
-    if (otp === TEST_OTP) {
-      // Check if user exists in profiles
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('mobile', cleanMobile)
-        .single();
-      
-      if (profile) {
-        return {
-          verified: true,
-          isNewUser: false,
-          profile: profile as Profile,
-          mobile: cleanMobile,
-          userId: profile.id,
-        };
-      }
-      
-      return {
-        verified: true,
-        isNewUser: true,
-        mobile: cleanMobile,
-      };
-    }
-    
-    // For production: verify with Supabase Auth
+    // Verify OTP with Supabase Auth
     const { data, error } = await supabase.auth.verifyOtp({
       phone: fullPhone,
       token: otp,
@@ -83,32 +51,20 @@ export const authService = {
     });
     
     if (error) {
-      // Fall back to test OTP if Supabase fails
-      if (otp === TEST_OTP) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('mobile', cleanMobile)
-          .single();
-        
-        return {
-          verified: true,
-          isNewUser: !profile,
-          profile: profile as Profile || undefined,
-          mobile: cleanMobile,
-          userId: profile?.id,
-        };
-      }
-      throw new Error('Invalid OTP');
+      throw new Error(error.message || 'Invalid OTP');
     }
     
     const userId = data.user?.id;
     
-    // Check if profile exists
+    if (!userId) {
+      throw new Error('Authentication failed');
+    }
+    
+    // Check if profile exists for this user
     const { data: profile } = await supabase
       .from('profiles')
       .select('*')
-      .eq('mobile', cleanMobile)
+      .eq('id', userId)
       .single();
     
     if (profile) {
@@ -121,6 +77,7 @@ export const authService = {
       };
     }
     
+    // New user - no profile yet
     return {
       verified: true,
       isNewUser: true,
