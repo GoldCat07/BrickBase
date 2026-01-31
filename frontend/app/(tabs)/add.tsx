@@ -1110,7 +1110,60 @@ export default function AddPropertyScreen() {
               </View>
             </View>
 
-            {/* 6. Price */}
+            {/* 6. Facing Direction */}
+            <View style={styles.section}>
+              <Text style={styles.label}>Facing Direction</Text>
+              <TouchableOpacity 
+                style={styles.dropdownField}
+                onPress={() => setShowFacingDropdown(!showFacingDropdown)}
+              >
+                <Text style={[
+                  styles.dropdownFieldText, 
+                  !facing && { color: '#666' }
+                ]}>
+                  {facing || 'Select Facing Direction'}
+                </Text>
+                <Ionicons name="chevron-down" size={20} color="#fff" />
+              </TouchableOpacity>
+              {showFacingDropdown && (
+                <View style={styles.facingDropdown}>
+                  <ScrollView style={styles.inlineDropdownScroll} nestedScrollEnabled>
+                    {FACING_DIRECTIONS.map((direction) => (
+                      <TouchableOpacity
+                        key={direction}
+                        style={[
+                          styles.dropdownItem,
+                          facing === direction && styles.dropdownItemSelected,
+                        ]}
+                        onPress={() => {
+                          setFacing(direction);
+                          setShowFacingDropdown(false);
+                        }}
+                      >
+                        <View style={styles.facingItemContent}>
+                          <Ionicons 
+                            name="compass-outline" 
+                            size={18} 
+                            color={facing === direction ? '#000' : '#fff'} 
+                          />
+                          <Text style={[
+                            styles.dropdownItemText,
+                            facing === direction && styles.dropdownItemTextSelected,
+                          ]}>
+                            {direction}
+                          </Text>
+                        </View>
+                        {facing === direction && (
+                          <Ionicons name="checkmark" size={18} color="#000" />
+                        )}
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+            </View>
+
+            {/* 7. Price */}
             {needsMultipleFloors ? (
               <View style={styles.section}>
                 <Text style={styles.label}>Floor & Price</Text>
