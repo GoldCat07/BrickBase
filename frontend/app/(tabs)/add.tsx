@@ -81,6 +81,12 @@ export default function AddPropertyScreen() {
   
   const [loading, setLoading] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [checkingLimit, setCheckingLimit] = useState(true);
+  
+  // Property limit modal state
+  const [showLimitModal, setShowLimitModal] = useState(false);
+  const [propertyLimit, setPropertyLimit] = useState(3);
+  const [currentPropertyCount, setCurrentPropertyCount] = useState(0);
   
   // Form state - in order
   const [propertyCategory, setPropertyCategory] = useState<PropertyCategory | ''>('');
@@ -90,6 +96,10 @@ export default function AddPropertyScreen() {
   const [photosWithoutLocation, setPhotosWithoutLocation] = useState<number>(0);
   const [builders, setBuilders] = useState<BuilderInfo[]>([{ name: '', phoneNumber: '', countryCode: '+91' }]);
   const [caseType, setCaseType] = useState<CaseType | ''>('');
+  
+  // Facing direction
+  const [facing, setFacing] = useState<FacingDirection | ''>('');
+  const [showFacingDropdown, setShowFacingDropdown] = useState(false);
   
   // Floor entries (for Builder Floor and Apartment Society)
   const [floors, setFloors] = useState<FloorEntry[]>([{ floorNumber: 0, price: 0, priceUnit: 'cr' }]);
