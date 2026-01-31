@@ -769,6 +769,7 @@ export default function AddPropertyScreen() {
         floors: floorsData,
         price: needsMultipleFloors ? null : actualPrice,
         priceUnit: needsMultipleFloors ? null : priceUnit,
+        facing: facing || null,
         builders: validBuilders,
         builderName: validBuilders[0]?.name || null,
         builderPhone: validBuilders[0]?.phoneNumber || null,
