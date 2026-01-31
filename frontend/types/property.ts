@@ -18,6 +18,9 @@ export type PriceUnit = 'cr' | 'lakh' | 'lakh_per_month';
 // Size Unit
 export type SizeUnit = 'sq_ft' | 'sq_yards' | 'sq_mts';
 
+// Facing Direction
+export type FacingDirection = 'North' | 'South' | 'East' | 'West' | 'North-East' | 'North-West' | 'South-East' | 'South-West';
+
 export interface BuilderInfo {
   name?: string;
   phoneNumber?: string;
