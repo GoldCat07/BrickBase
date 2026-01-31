@@ -13,7 +13,6 @@ interface User {
   email: string | null;
   role: 'broker' | 'employee';
   is_pro_broker: boolean;
-  organization_id: string | null;
   profile_photo: string | null;
   subscription_status: string | null;
   created_at: string;
@@ -67,7 +66,6 @@ const profileToUser = (profile: Profile): User => ({
   email: profile.email,
   role: profile.role,
   is_pro_broker: profile.is_pro_broker,
-  organization_id: profile.organization_id,
   profile_photo: profile.profile_photo,
   subscription_status: profile.subscription_status,
   created_at: profile.created_at,
