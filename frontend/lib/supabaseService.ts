@@ -172,6 +172,7 @@ export const authService = {
     let role: 'broker' | 'employee' = 'broker';
     let organizationId: string | null = null;
     let firmName = data.firm_name;
+    let inviteCodeUsed: string | null = null;
     
     if (data.invite_code) {
       const { data: org } = await supabase
@@ -181,25 +182,22 @@ export const authService = {
         .single();
       
       if (org) {
-        // Check available seats
-        const { count } = await supabase
-          .from('organization_members')
-          .select('*', { count: 'exact', head: true })
-          .eq('organization_id', org.id);
-        
-        if ((count || 0) >= org.employee_seats) {
+        // Check available seats using used_employee_seats from organization
+        if (org.used_employee_seats >= org.max_employee_seats) {
           throw new Error('Organization has no available seats');
         }
         
         role = 'employee';
         organizationId = org.id;
         firmName = org.name;
+        inviteCodeUsed = data.invite_code;
       }
     }
     
     // Generate UUID for profile
     const profileId = Crypto.randomUUID();
     
+    // Insert profile WITHOUT organization_id (schema uses organization_members table)
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .insert({
@@ -210,8 +208,7 @@ export const authService = {
         city: data.city,
         email: data.email,
         role,
-        is_pro_broker: false,
-        organization_id: organizationId,
+        invite_code_used: inviteCodeUsed,
         latitude: data.latitude,
         longitude: data.longitude,
       })
@@ -220,14 +217,21 @@ export const authService = {
     
     if (profileError) throw new Error(profileError.message);
     
-    // If employee, add to organization members
+    // If employee, add to organization_members table
+    // The trigger in DB will auto-increment used_employee_seats
     if (organizationId) {
-      await supabase.from('organization_members').insert({
+      const { error: memberError } = await supabase.from('organization_members').insert({
         user_id: profileId,
         organization_id: organizationId,
         role: 'employee',
+        is_active: true,
         joined_at: new Date().toISOString(),
       });
+      
+      if (memberError) {
+        console.error('Error adding to organization:', memberError);
+        // Don't fail signup, just log the error
+      }
     }
     
     return profile as Profile;
