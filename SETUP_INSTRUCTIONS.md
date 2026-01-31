@@ -175,9 +175,9 @@ Edit `/app/frontend/.env` and add your Supabase credentials:
 
 ```env
 # Existing variables (DO NOT MODIFY)
-EXPO_TUNNEL_SUBDOMAIN=propbroker-1
-EXPO_PACKAGER_HOSTNAME=https://propbroker-1.preview.emergentagent.com
-EXPO_PUBLIC_BACKEND_URL=https://propbroker-1.preview.emergentagent.com
+EXPO_TUNNEL_SUBDOMAIN=propwise-14
+EXPO_PACKAGER_HOSTNAME=https://propwise-14.preview.emergentagent.com
+EXPO_PUBLIC_BACKEND_URL=https://propwise-14.preview.emergentagent.com
 EXPO_USE_FAST_RESOLVER="1"
 METRO_CACHE_ROOT=/app/frontend/.metro-cache
 
