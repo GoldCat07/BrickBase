@@ -24,13 +24,16 @@ export interface Profile {
   email: string | null;
   role: 'broker' | 'employee';
   is_pro_broker: boolean;
+  admin_granted_pro: boolean;
   profile_photo: string | null;
-  subscription_status: 'active' | 'expired' | 'pending_payment' | null;
-  organization_id: string | null;
+  subscription_status: 'active' | 'expired' | 'pending_payment' | 'none' | null;
+  invite_code_used: string | null;
+  invited_by: string | null;
   latitude: number | null;
   longitude: number | null;
   device_token: string | null;
   device_id: string | null;
+  device_platform: 'ios' | 'android' | null;
   last_login_at: string | null;
   created_at: string;
   updated_at: string;
