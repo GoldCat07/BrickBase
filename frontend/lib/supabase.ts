@@ -83,6 +83,15 @@ export interface Subscription {
   updated_at: string;
 }
 
+// Facing direction type
+export type FacingDirection = 'North' | 'South' | 'East' | 'West' | 'North-East' | 'North-West' | 'South-East' | 'South-West';
+
+// All facing options for UI dropdowns
+export const FACING_DIRECTIONS: FacingDirection[] = [
+  'North', 'South', 'East', 'West',
+  'North-East', 'North-West', 'South-East', 'South-West'
+];
+
 export interface Property {
   id: string;
   property_category: 'Residential' | 'Commercial' | null;
@@ -91,6 +100,7 @@ export interface Property {
   property_videos: string[];
   price: number | null;
   price_unit: 'cr' | 'lakh' | 'lakh_per_month' | null;
+  facing: FacingDirection | null;
   floors: Array<{
     floorNumber: number;
     price: number;
