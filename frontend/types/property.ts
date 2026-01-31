@@ -115,6 +115,10 @@ export const SIZE_UNITS: { label: string; value: SizeUnit }[] = [
   { label: 'sq. yards (gaj)', value: 'sq_yards' },
   { label: 'sq. mts.', value: 'sq_mts' },
 ];
+export const FACING_DIRECTIONS: FacingDirection[] = [
+  'North', 'South', 'East', 'West',
+  'North-East', 'North-West', 'South-East', 'South-West'
+];
 export const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'
