@@ -1596,6 +1596,64 @@ export default function AddPropertyScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Property Limit Modal - Platform Specific */}
+      <Modal
+        visible={showLimitModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowLimitModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalIconContainer}>
+              <Ionicons name="alert-circle" size={48} color="#FF9800" />
+            </View>
+            
+            <Text style={styles.modalTitle}>
+              {Platform.OS === 'ios' ? 'Property Limit Reached' : 'Upgrade to Pro Broker'}
+            </Text>
+            
+            <Text style={styles.modalMessage}>
+              {Platform.OS === 'ios' 
+                ? `Currently in this beta version of app you're limited to ${propertyLimit} properties only thanks.`
+                : `You've reached the limit of ${propertyLimit} properties for free accounts. Upgrade to Pro Broker to add unlimited properties!`
+              }
+            </Text>
+            
+            <View style={styles.modalPropertyCount}>
+              <Text style={styles.modalCountText}>
+                {currentPropertyCount} / {propertyLimit} properties used
+              </Text>
+            </View>
+
+            {Platform.OS === 'android' && (
+              <TouchableOpacity 
+                style={styles.modalUpgradeButton}
+                onPress={() => {
+                  setShowLimitModal(false);
+                  router.push('/subscription');
+                }}
+              >
+                <Ionicons name="star" size={20} color="#000" />
+                <Text style={styles.modalUpgradeButtonText}>Upgrade to Pro</Text>
+              </TouchableOpacity>
+            )}
+            
+            <TouchableOpacity 
+              style={styles.modalCloseButton}
+              onPress={() => {
+                setShowLimitModal(false);
+                router.back();
+              }}
+            >
+              <Text style={styles.modalCloseButtonText}>
+                {Platform.OS === 'ios' ? 'OK' : 'Maybe Later'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
