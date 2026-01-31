@@ -198,7 +198,7 @@ export const authService = {
     }
     
     // Generate UUID for profile
-    const profileId = crypto.randomUUID();
+    const profileId = Crypto.randomUUID();
     
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
