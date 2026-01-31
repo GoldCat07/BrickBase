@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Dimensions,
+  Modal,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
@@ -39,9 +40,11 @@ import {
   SIZE_UNITS,
   MONTHS,
 } from '../../types/property';
+import { FacingDirection, FACING_DIRECTIONS } from '../../lib/supabase';
 import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import api from '../../lib/api';
 import { setNewPropertyAdded } from '../../lib/cache';
+import { propertyService } from '../../lib/supabaseService';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const MAX_CONTENT_WIDTH = 500;
