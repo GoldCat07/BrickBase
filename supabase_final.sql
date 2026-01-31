@@ -845,10 +845,10 @@ ALTER TABLE public.user_message_status ENABLE ROW LEVEL SECURITY;
 -- ============================================================================
 
 -- PROFILES
-CREATE POLICY 'profiles_select_own ON public.profiles
+CREATE POLICY 'profiles_select_own' ON public.profiles
   FOR SELECT USING (auth.uid() = id);
 
-CREATE POLICY 'profiles_select_org_members ON public.profiles
+CREATE POLICY 'profiles_select_org_members' ON public.profiles
   FOR SELECT USING (
     id IN (
       SELECT om2.user_id FROM public.organization_members om1
@@ -857,12 +857,12 @@ CREATE POLICY 'profiles_select_org_members ON public.profiles
     )
   );
 
-CREATE POLICY 'profiles_update_own ON public.profiles
+CREATE POLICY 'profiles_update_own' ON public.profiles
   FOR UPDATE USING (auth.uid() = id)
   WITH CHECK (auth.uid() = id);
 
 -- ORGANIZATIONS
-CREATE POLICY 'organizations_select ON public.organizations
+CREATE POLICY 'organizations_select' ON public.organizations
   FOR SELECT USING (
     owner_id = auth.uid() OR
     id IN (
@@ -871,7 +871,7 @@ CREATE POLICY 'organizations_select ON public.organizations
     )
   );
 
-CREATE POLICY 'organizations_insert_pro ON public.organizations
+CREATE POLICY 'organizations_insert_pro' ON public.organizations
   FOR INSERT WITH CHECK (
     owner_id = auth.uid() AND
     EXISTS (
@@ -880,52 +880,52 @@ CREATE POLICY 'organizations_insert_pro ON public.organizations
     )
   );
 
-CREATE POLICY 'organizations_update_owner ON public.organizations
+CREATE POLICY 'organizations_update_owner' ON public.organizations
   FOR UPDATE USING (owner_id = auth.uid());
 
-CREATE POLICY 'organizations_delete_owner ON public.organizations
+CREATE POLICY 'organizations_delete_owner' ON public.organizations
   FOR DELETE USING (owner_id = auth.uid());
 
 -- ORGANIZATION MEMBERS
-CREATE POLICY 'org_members_select ON public.organization_members
+CREATE POLICY 'org_members_select' ON public.organization_members
   FOR SELECT USING (
     organization_id IN (SELECT id FROM public.organizations WHERE owner_id = auth.uid())
     OR user_id = auth.uid()
   );
 
-CREATE POLICY 'org_members_insert ON public.organization_members
+CREATE POLICY 'org_members_insert' ON public.organization_members
   FOR INSERT WITH CHECK (
     organization_id IN (SELECT id FROM public.organizations WHERE owner_id = auth.uid())
   );
 
-CREATE POLICY 'org_members_update_owner ON public.organization_members
+CREATE POLICY 'org_members_update_owner' ON public.organization_members
   FOR UPDATE USING (
     organization_id IN (SELECT id FROM public.organizations WHERE owner_id = auth.uid())
   );
 
 -- Allow employees to leave (deactivate themselves)
-CREATE POLICY 'org_members_update_self_leave ON public.organization_members
+CREATE POLICY 'org_members_update_self_leave' ON public.organization_members
   FOR UPDATE USING (user_id = auth.uid() AND is_active = true)
   WITH CHECK (user_id = auth.uid() AND is_active = false);
 
-CREATE POLICY 'org_members_delete ON public.organization_members
+CREATE POLICY 'org_members_delete' ON public.organization_members
   FOR DELETE USING (
     organization_id IN (SELECT id FROM public.organizations WHERE owner_id = auth.uid())
   );
 
 -- PRICING
-CREATE POLICY 'pricing_select ON public.pricing
+CREATE POLICY 'pricing_select' ON public.pricing
   FOR SELECT USING (auth.role() = 'authenticated');
 
 -- SUBSCRIPTIONS (select only - managed by service_role)
-CREATE POLICY 'subscriptions_select_own ON public.subscriptions
+CREATE POLICY 'subscriptions_select_own' ON public.subscriptions
   FOR SELECT USING (user_id = auth.uid());
 
 -- PROPERTIES
-CREATE POLICY 'properties_select_own ON public.properties
+CREATE POLICY 'properties_select_own' ON public.properties
   FOR SELECT USING (user_id = auth.uid());
 
-CREATE POLICY 'properties_select_org ON public.properties
+CREATE POLICY 'properties_select_org' ON public.properties
   FOR SELECT USING (
     user_id IN (
       SELECT om2.user_id FROM public.organization_members om1
@@ -934,21 +934,21 @@ CREATE POLICY 'properties_select_org ON public.properties
     )
   );
 
-CREATE POLICY 'properties_insert ON public.properties
+CREATE POLICY 'properties_insert' ON public.properties
   FOR INSERT WITH CHECK (user_id = auth.uid());
 
-CREATE POLICY 'properties_update_own ON public.properties
+CREATE POLICY 'properties_update_own' ON public.properties
   FOR UPDATE USING (user_id = auth.uid());
 
-CREATE POLICY 'properties_delete_own ON public.properties
+CREATE POLICY 'properties_delete_own' ON public.properties
   FOR DELETE USING (user_id = auth.uid());
 
 -- APP CONFIG
-CREATE POLICY 'app_config_select ON public.app_config
+CREATE POLICY 'app_config_select' ON public.app_config
   FOR SELECT USING (is_active = true AND auth.role() = 'authenticated');
 
 -- IN-APP MESSAGES
-CREATE POLICY 'messages_select ON public.in_app_messages
+CREATE POLICY 'messages_select' ON public.in_app_messages
   FOR SELECT USING (
     auth.role() = 'authenticated' AND is_active = true AND
     (start_date IS NULL OR start_date <= NOW()) AND
@@ -956,13 +956,13 @@ CREATE POLICY 'messages_select ON public.in_app_messages
   );
 
 -- USER MESSAGE STATUS
-CREATE POLICY 'message_status_select_own ON public.user_message_status
+CREATE POLICY 'message_status_select_own' ON public.user_message_status
   FOR SELECT USING (user_id = auth.uid());
 
-CREATE POLICY 'message_status_insert_own ON public.user_message_status
+CREATE POLICY 'message_status_insert_own' ON public.user_message_status
   FOR INSERT WITH CHECK (user_id = auth.uid());
 
-CREATE POLICY 'message_status_update_own ON public.user_message_status
+CREATE POLICY 'message_status_update_own' ON public.user_message_status
   FOR UPDATE USING (user_id = auth.uid());
 
 -- ============================================================================
@@ -981,47 +981,47 @@ ON CONFLICT (id) DO UPDATE SET
   allowed_mime_types = EXCLUDED.allowed_mime_types;
 
 -- Profile photos
-CREATE POLICY 'profile_photos_insert" ON storage.objects
+CREATE POLICY 'profile_photos_insert' ON storage.objects
   FOR INSERT WITH CHECK (
     bucket_id = 'profile-photos' AND auth.role() = 'authenticated' AND
     (storage.foldername(name))[1] = auth.uid()::text
   );
 
-CREATE POLICY 'profile_photos_update" ON storage.objects
+CREATE POLICY 'profile_photos_update' ON storage.objects
   FOR UPDATE USING (
     bucket_id = 'profile-photos' AND auth.role() = 'authenticated' AND
     (storage.foldername(name))[1] = auth.uid()::text
   );
 
-CREATE POLICY 'profile_photos_delete" ON storage.objects
+CREATE POLICY 'profile_photos_delete' ON storage.objects
   FOR DELETE USING (
     bucket_id = 'profile-photos' AND auth.role() = 'authenticated' AND
     (storage.foldername(name))[1] = auth.uid()::text
   );
 
-CREATE POLICY 'profile_photos_select" ON storage.objects
+CREATE POLICY 'profile_photos_select' ON storage.objects
   FOR SELECT USING (bucket_id = 'profile-photos' AND auth.role() = 'authenticated');
 
 -- Property photos with safe UUID validation
-CREATE POLICY 'property_photos_insert" ON storage.objects
+CREATE POLICY 'property_photos_insert' ON storage.objects
   FOR INSERT WITH CHECK (
     bucket_id = 'property-photos' AND auth.role() = 'authenticated' AND
     (storage.foldername(name))[1] = auth.uid()::text
   );
 
-CREATE POLICY 'property_photos_update" ON storage.objects
+CREATE POLICY 'property_photos_update' ON storage.objects
   FOR UPDATE USING (
     bucket_id = 'property-photos' AND auth.role() = 'authenticated' AND
     (storage.foldername(name))[1] = auth.uid()::text
   );
 
-CREATE POLICY 'property_photos_delete" ON storage.objects
+CREATE POLICY 'property_photos_delete' ON storage.objects
   FOR DELETE USING (
     bucket_id = 'property-photos' AND auth.role() = 'authenticated' AND
     (storage.foldername(name))[1] = auth.uid()::text
   );
 
-CREATE POLICY 'property_photos_select" ON storage.objects
+CREATE POLICY 'property_photos_select' ON storage.objects
   FOR SELECT USING (
     bucket_id = 'property-photos' AND auth.role() = 'authenticated' AND
     (
@@ -1039,25 +1039,25 @@ CREATE POLICY 'property_photos_select" ON storage.objects
   );
 
 -- Property videos
-CREATE POLICY 'property_videos_insert" ON storage.objects
+CREATE POLICY 'property_videos_insert' ON storage.objects
   FOR INSERT WITH CHECK (
     bucket_id = 'property-videos' AND auth.role() = 'authenticated' AND
     (storage.foldername(name))[1] = auth.uid()::text
   );
 
-CREATE POLICY 'property_videos_update" ON storage.objects
+CREATE POLICY 'property_videos_update' ON storage.objects
   FOR UPDATE USING (
     bucket_id = 'property-videos' AND auth.role() = 'authenticated' AND
     (storage.foldername(name))[1] = auth.uid()::text
   );
 
-CREATE POLICY 'property_videos_delete" ON storage.objects
+CREATE POLICY 'property_videos_delete' ON storage.objects
   FOR DELETE USING (
     bucket_id = 'property-videos' AND auth.role() = 'authenticated' AND
     (storage.foldername(name))[1] = auth.uid()::text
   );
 
-CREATE POLICY 'property_videos_select" ON storage.objects
+CREATE POLICY 'property_videos_select' ON storage.objects
   FOR SELECT USING (
     bucket_id = 'property-videos' AND auth.role() = 'authenticated' AND
     (
@@ -1075,25 +1075,25 @@ CREATE POLICY 'property_videos_select" ON storage.objects
   );
 
 -- Property files
-CREATE POLICY 'property_files_insert" ON storage.objects
+CREATE POLICY 'property_files_insert' ON storage.objects
   FOR INSERT WITH CHECK (
     bucket_id = 'property-files' AND auth.role() = 'authenticated' AND
     (storage.foldername(name))[1] = auth.uid()::text
   );
 
-CREATE POLICY 'property_files_update" ON storage.objects
+CREATE POLICY 'property_files_update' ON storage.objects
   FOR UPDATE USING (
     bucket_id = 'property-files' AND auth.role() = 'authenticated' AND
     (storage.foldername(name))[1] = auth.uid()::text
   );
 
-CREATE POLICY 'property_files_delete" ON storage.objects
+CREATE POLICY 'property_files_delete' ON storage.objects
   FOR DELETE USING (
     bucket_id = 'property-files' AND auth.role() = 'authenticated' AND
     (storage.foldername(name))[1] = auth.uid()::text
   );
 
-CREATE POLICY 'property_files_select" ON storage.objects
+CREATE POLICY 'property_files_select' ON storage.objects
   FOR SELECT USING (
     bucket_id = 'property-files' AND auth.role() = 'authenticated' AND
     (
