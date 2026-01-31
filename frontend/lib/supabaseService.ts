@@ -3,6 +3,7 @@
 // Uses Supabase Auth for authentication
 
 import { supabase, Profile, Organization, OrganizationMember, Pricing, Subscription, Property, InAppMessage, AppConfig } from './supabase';
+import * as Crypto from 'expo-crypto';
 
 // ============================================================================
 // AUTH SERVICES (Using Supabase Auth)
