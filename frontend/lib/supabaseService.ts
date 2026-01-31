@@ -87,7 +87,8 @@ export const authService = {
   },
 
   /**
-   * Sign up new user
+   * Sign up new user - creates profile for authenticated user
+   * Must be called after successful OTP verification
    */
   async signUp(data: {
     mobile: string;
@@ -101,18 +102,27 @@ export const authService = {
   }): Promise<Profile> {
     const cleanMobile = data.mobile.replace(/\D/g, '');
     
-    // Check if user already exists
+    // Get the current authenticated user from Supabase Auth
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !authData.user) {
+      throw new Error('You must be authenticated to create a profile. Please verify your OTP first.');
+    }
+    
+    const userId = authData.user.id;
+    
+    // Check if profile already exists for this user
     const { data: existing } = await supabase
       .from('profiles')
       .select('id')
-      .eq('mobile', cleanMobile)
+      .eq('id', userId)
       .single();
     
     if (existing) {
-      throw new Error('User already exists');
+      throw new Error('Profile already exists for this user');
     }
     
-    // Check if email is taken
+    // Check if email is taken by another user
     if (data.email) {
       const { data: emailExists } = await supabase
         .from('profiles')
@@ -151,14 +161,11 @@ export const authService = {
       }
     }
     
-    // Generate UUID for profile
-    const profileId = Crypto.randomUUID();
-    
-    // Insert profile WITHOUT organization_id (schema uses organization_members table)
+    // Insert profile with authenticated user's ID (matches auth.uid() for RLS)
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .insert({
-        id: profileId,
+        id: userId,
         mobile: cleanMobile,
         name: data.name,
         firm_name: firmName,
@@ -178,7 +185,7 @@ export const authService = {
     // The trigger in DB will auto-increment used_employee_seats
     if (organizationId) {
       const { error: memberError } = await supabase.from('organization_members').insert({
-        user_id: profileId,
+        user_id: userId,
         organization_id: organizationId,
         role: 'employee',
         is_active: true,
