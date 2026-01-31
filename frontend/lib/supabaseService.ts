@@ -679,6 +679,66 @@ export const subscriptionService = {
 
 export const propertyService = {
   /**
+   * Get user's property count (not including sold ones)
+   */
+  async getUserPropertyCount(userId: string): Promise<number> {
+    const { count, error } = await supabase
+      .from('properties')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('is_sold', false);
+    
+    if (error) throw new Error(error.message);
+    return count || 0;
+  },
+
+  /**
+   * Check if user can add more properties
+   * Returns: { canAdd: boolean, currentCount: number, limit: number }
+   */
+  async checkPropertyLimit(userId: string): Promise<{
+    canAdd: boolean;
+    currentCount: number;
+    limit: number;
+    isProBroker: boolean;
+  }> {
+    // Get user's pro status
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('is_pro_broker')
+      .eq('id', userId)
+      .single();
+    
+    const isProBroker = profile?.is_pro_broker || false;
+    
+    // Pro brokers have unlimited properties
+    if (isProBroker) {
+      return { canAdd: true, currentCount: 0, limit: -1, isProBroker: true };
+    }
+    
+    // Get free property limit from app_config
+    const { data: config } = await supabase
+      .from('app_config')
+      .select('value')
+      .eq('key', 'free_broker_property_limit')
+      .eq('is_active', true)
+      .single();
+    
+    // Default to 3 if not configured
+    const limit = config?.value?.limit ?? 3;
+    
+    // Get current property count
+    const currentCount = await this.getUserPropertyCount(userId);
+    
+    return {
+      canAdd: currentCount < limit,
+      currentCount,
+      limit,
+      isProBroker: false,
+    };
+  },
+
+  /**
    * Create property
    */
   async create(userId: string, propertyData: Partial<Property>): Promise<Property> {
