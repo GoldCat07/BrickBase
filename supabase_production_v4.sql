@@ -146,6 +146,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- FIX #1 & #3 (CRITICAL): Function to expire subscriptions (ADMIN ONLY)
 -- Sets session flag to bypass profile trigger restrictions
+-- CRITICAL: Uses BEGIN/EXCEPTION to ensure bypass flag is ALWAYS cleared
 CREATE OR REPLACE FUNCTION public.expire_subscriptions()
 RETURNS TABLE(subscription_id UUID, user_id UUID, old_status TEXT, new_status TEXT) AS $$
 DECLARE
@@ -160,29 +161,36 @@ BEGIN
     END IF;
   END IF;
 
-  -- FIX #1 (CRITICAL): Set session flag so sync trigger can bypass profile restrictions
-  PERFORM set_config('app.bypass_profile_restrictions', 'true', true);
+  -- Use protected block to ensure bypass flag is always cleared
+  BEGIN
+    PERFORM set_config('app.bypass_profile_restrictions', 'true', true);
 
-  FOR sub IN 
-    SELECT s.id, s.user_id, s.status
-    FROM public.subscriptions s
-    WHERE s.status = 'active' 
-      AND s.end_date < NOW()
-  LOOP
-    subscription_id := sub.id;
-    user_id := sub.user_id;
-    old_status := sub.status;
-    new_status := 'expired';
+    FOR sub IN 
+      SELECT s.id, s.user_id, s.status
+      FROM public.subscriptions s
+      WHERE s.status = 'active' 
+        AND s.end_date < NOW()
+    LOOP
+      subscription_id := sub.id;
+      user_id := sub.user_id;
+      old_status := sub.status;
+      new_status := 'expired';
+      
+      UPDATE public.subscriptions
+      SET status = 'expired', updated_at = NOW()
+      WHERE id = sub.id;
+      
+      RETURN NEXT;
+    END LOOP;
     
-    UPDATE public.subscriptions
-    SET status = 'expired', updated_at = NOW()
-    WHERE id = sub.id;
+    -- Clear bypass flag on success
+    PERFORM set_config('app.bypass_profile_restrictions', 'false', true);
     
-    RETURN NEXT;
-  END LOOP;
-  
-  -- Clear the bypass flag
-  PERFORM set_config('app.bypass_profile_restrictions', 'false', true);
+  EXCEPTION WHEN OTHERS THEN
+    -- CRITICAL: Always clear bypass flag, even on error
+    PERFORM set_config('app.bypass_profile_restrictions', 'false', true);
+    RAISE; -- Re-throw the original exception
+  END;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
