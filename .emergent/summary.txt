@@ -1,164 +1,186 @@
 <analysis>
 
-**original_problem_statement**: The user's primary goal is to build a real estate mobile application using Supabase as a complete Backend-as-a-Service (BaaS), eliminating the need for a separate, self-hosted backend server. The application should feature a mobile app for brokers and employees and a future web-based admin dashboard.
+**original_problem_statement**: The user wants to build a real estate mobile application using Supabase as a Backend-as-a-Service (BaaS). The initial goal was to have a mobile app for brokers and a web admin dashboard. However, the user has pivoted to focus exclusively on perfecting the mobile app first, deferring the admin dashboard.
+
+The user is highly technical and has provided multiple rounds of expert-level feedback on the Supabase SQL schema, identifying critical security vulnerabilities, data integrity issues, and logical flaws. The current priority is to create a production-ready, secure, and robust SQL schema that addresses all identified issues before implementing further frontend features.
 
 **PRODUCT REQUIREMENTS:**
 
-**Mobile App (Broker/Employee Facing):**
-1.  **Authentication:** Supabase phone OTP-based sign-up/login. A static OTP of  is to be used for development.
-2.  **Roles & Naming:**
-    *   The primary user role is Broker (formerly Owner).
-    *   Brokers can upgrade to a Pro Broker subscription.
-3.  **Organizations:** Pro Brokers can create organizations and invite employees.
-4.  **Property Management:**
-    *   Brokers can add and manage property listings through a detailed form.
-    *   The property form must support uploading multiple photos and videos.
-5.  **Media Gallery:**
-    *   The Add Property screen should have a View Gallery button.
-    *   This button should navigate to a new screen displaying all photos and videos for that property in a 2-column grid.
-    *   The gallery must have separate, collapsible sections for Videos and Photos.
+**Core App (Android & iOS):**
+1.  **Authentication:** Supabase phone OTP. A static OTP  is used for development.
+2.  **Roles:**
+    *   : Default role on signup.
+    *   : Assigned when a user signs up via an organization's invite link.
+    *   : A status granted to a  upon subscribing.
+3.  **Property Management:**
+    *   Brokers can add property listings.
+    *   A  field (North, South, East, West, etc.) needs to be added to the property form and table.
+    *   Listings must support multiple photos and videos, with an option to select one photo as the .
+    *   A gallery view with delete functionality for media.
+4.  **Property Limits:**
+    *   Free-tier brokers have a limited number of properties they can post. This limit should be configurable remotely via a Supabase table ().
+    *   For now, the limit is 3.
+5.  **In-App Messaging:** The backend must support a system for sending custom in-app popups/messages to users, with targeting options (by role) and scheduling (show once, show daily for X days). This is for a future admin panel to use.
 
-**Admin Dashboard (Web - Future Task):**
-1.  **Role-Based Access Control:**
-    *   Three admin roles: , , .
-    *   The Super Admin (the user) will be created via a manual SQL script.
-    *   The Super Admin must be able to dynamically create new roles and assign/revoke specific permissions (e.g., ability to change pricing).
-2.  **In-App Messaging & Remote Config:**
-    *   The Super Admin needs a system to send dynamic in-app messages or pop-ups to users.
-    *   This system should allow for custom content (text, images) and targeting (e.g., by region). The goal is to update the app's content and communicate with users without requiring an app store update.
+**Platform-Specific Requirements:**
+*   **iOS:**
+    *   **No Payments:** The app must contain **no reference** to payments, subscriptions, or premium features.
+    *   **Feature Locks:** When a free-tier user hits the property limit, a generic popup should appear: currently in this beta version of app you’re limited to 3 properties only thanks.
+    *   The Organization feature should be disabled, showing a this feature is coming soon message on interaction.
+*   **Android:**
+    *   **Payments:** Will use Razorpay for subscriptions.
+    *   **Upgrade Prompt:** When a free-tier user hits the property limit, a popup should prompt them to upgrade: you’ve posted the maximum number of properties, become a pro broker today to post unlimited properties and get your employees also.
+    *   **Dynamic Billing:** The payment flow must handle dynamic subscription costs (e.g., adding/removing employees).
+    *   **Webhook Integration:** A webhook is required to sync payment status from Razorpay to the Supabase backend, automatically managing the user's  status.
 
 **User's preferred language**: English
 
 **what currently exists?**
-The project has undergone a major architectural pivot from a FastAPI/MongoDB backend to a Supabase Backend-as-a-Service (BaaS) model. The agent has generated a complete, versioned SQL schema () that defines all necessary tables, roles, Row Level Security (RLS) policies, and storage buckets. The frontend  and authentication screens have been refactored to use Supabase's phone OTP auth directly. A global renaming from Owner to Broker has been performed across relevant frontend files. Work has begun on a new media gallery feature for property listings.
+The project is an Expo mobile app. The backend has been completely pivoted to Supabase. The agent has gone through multiple, intensive iterations of creating a Supabase SQL schema in response to the user's detailed and critical security/logic reviews. The latest attempt is a file named , which aims to fix numerous high-severity issues identified by the user in the previous version. Frontend work on a media gallery and add property screen was started but is now secondary to finalizing the database schema.
 
 **Last working item**:
-    - Last item agent was working: Implementing the UI for the Photos/Videos Gallery feature on the Add Property screen (). The agent added state management and picker functions for videos, created a placeholder for the new gallery screen (), and refactored the UI to include a View Gallery button. This was followed by a cycle of debugging and fixing several TypeScript errors that arose from the changes.
-    - Status: IN PROGRESS
+    - Last item agent was working: The agent created a new version of the production schema, .
+    - This was in direct response to the user's expert-level critique (Message 43) of the previous schema (), which highlighted critical flaws such as incorrect trigger logic that could corrupt data, RLS policies that allowed employees to switch organizations, and missing enforcement for business rules like employee limits. The new  schema is an attempt to address every single one of these identified issues.
+    - Status: IN PROGRESS (The file is created, but it has not been presented to the user for validation, nor have the fixes been explained.)
     - Agent Testing Done: N
-    - Which testing method agent to use? manual testing by screenshot tool
+    - Which testing method agent to use? Manual review by the user. The agent should present the SQL file and explain how it addresses the user's previous concerns.
     - User Testing Done: N
 
 **All Pending/In progress Issue list**:
-  None. The previous TypeScript errors were resolved. The primary focus is on completing the in-progress task.
+  - Issue 1: Finalize a production-ready, secure Supabase schema (P0)
+    - **Description**: The user has repeatedly identified critical security and logic flaws in the SQL schemas provided by the agent. The latest attempt, , must be validated to ensure it correctly and robustly fixes all issues raised in user message 43.
+    - **Attempted fixes**: , , and  were all found to be flawed by the user.  is the latest fix.
+    - **Next debug checklist**:
+        1. Present  to the user.
+        2. Provide a point-by-point explanation of how the new schema addresses each of the critical, high, and medium severity issues from user message 43 (e.g., The trigger now queries for the best active subscription to prevent data corruption..., The policy now uses a clause that restricts column updates to prevent privilege escalation...).
+        3. Await user approval before proceeding to any other task.
+    - **Why fix this issue and what will be achieved with the fix?**: The database is the foundation of the entire application. A flawed schema will lead to critical security breaches, data corruption, and unpredictable behavior. A correct schema is a non-negotiable prerequisite for any further development.
+    - **Status**: IN PROGRESS
+    - **Is recurring issue?**: Y
+    - **Should Test frontend/backend/both after fix?**: Neither. This requires user validation of the SQL script.
 
 **In progress Task List**:
-  - Task 1:  Complete the Photos/Videos Gallery UI (P0)
-     - Where to resume: 
-        1. Implement the navigation logic. The View Gallery button in  needs to be wired up using  to navigate to the  screen. The photos and videos state should be passed as route parameters.
-        2. Build the UI for the  screen. This screen is currently a placeholder and needs to be implemented to meet user requirements: a 2-column grid layout, and two separate, collapsible sections for Videos (using ) and Photos.
-     - What will be achieved with this?: Users will be able to add both photos and videos to a property and view them in an organized, full-screen gallery, which is a key feature for a real estate app.
-     - Status:  IN PROGRESS
-     - Should Test frontend/backend/both after fix?: frontend
-     - Blocked on something: User must run the SQL schema first for the underlying data structure to exist.
+  - Task 1: Get User Approval for Production Schema (P0)
+     - **Description**: Same as the pending issue above. This is the single most important and immediate task.
+     - **Where to resume**: The agent just created . The next step is to use the  tool to present it to the user with a detailed explanation of the fixes.
+     - **What will be achieved with this?**: A stable, secure, and user-approved database schema, which unblocks all future development.
+     - **Status**: IN PROGRESS
+     - **Should Test frontend/backend/both after fix?**: N/A
+     - **Blocked on something**: Awaiting user review and approval.
 
 **Upcoming and Future Tasks**
+**Upcoming Tasks (Phase 2 - Frontend Implementation):**
+- **P1: Add Facing Field to Property Form:**
+  - File: 
+  - Implement a dropdown/picker for the  property with the specified options (North, South, East, etc.).
+- **P1: Implement Property Posting Limits & Feature Locks:**
+  - **Logic:** Fetch  and  from the  table. In the Add Property component, query the count of properties owned by .
+  - **iOS Implementation:**
+    - If limit is reached, show a generic popup: currently in this beta version of app you’re limited to 3 properties only thanks.
+    - In the UI where organization features are accessed, wrap it in a  check and replace it with a disabled component that shows this feature is coming soon on press.
+  - **Android Implementation:**
+    - If limit is reached, show a popup prompting an upgrade to Pro Broker. This popup should navigate to the new payment screen.
 
-**Upcoming Tasks:**
-- **P0: User-Side Supabase Setup (BLOCKER):** The user must execute the generated SQL scripts ( and ) in their Supabase project's SQL Editor. This is a critical prerequisite for all further development.
-- **P1: Full Frontend Supabase Integration:** Audit the entire frontend application (especially property detail views) to ensure all data fetching and mutation logic is refactored to use  and no remnants of the old FastAPI client exist.
-- **P2: Implement In-App Messaging UI:** Create the AirPods-style pop-up component that fetches and displays content from the  table in Supabase. Implement the logic to trigger its display.
-
-**Future Tasks:**
-- **Build the Admin Dashboard:** Create a new web application for the admin dashboard with its own authentication (email/password).
-- **Implement Dynamic Admin Permissions:** The dashboard must allow the  to create/edit roles and their permissions, with the UI dynamically adjusting based on the logged-in admin's permissions.
-- **Implement Deep Linking:** Set up the organization invite link flow.
-- **Implement Real Payment Integration:** Replace the mock payment system with Razorpay.
+**Future Tasks (Phase 3 & Beyond):**
+- **P2: Android Payment Integration (Razorpay):**
+  - **Documentation:** Provide the user with a guide on what they need to set up in their Razorpay dashboard (API keys, webhook endpoint).
+  - **UI:** Create a new screen for handling the subscription payment flow.
+  - **Backend:** Create a Supabase Edge Function to act as a webhook receiver for Razorpay. This function must securely handle events to update the  table and, subsequently, the user's  status in the  table.
+- **P3: Build Admin Dashboard:** (Deferred) Create a separate web application for admin functions, which will interact with the Supabase tables (, , etc.).
 
 **Completed work in this session**
-- **Architecture Pivot:** Successfully transitioned the project's architecture from a FastAPI/MongoDB stack to a pure Supabase BaaS model. The old backend code in  is now obsolete.
-- **Supabase Schema Generation:**
-    - Created a comprehensive V2 schema in . This includes tables for profiles, organizations, properties, pricing, and a full admin role/permission system.
-    - Corrected a critical Row Level Security (RLS) vulnerability in the  table.
-    - Created a separate script, , for the user to create their super admin account.
-- **Frontend Refactoring:**
-    - Updated  and auth screens (, , ) to use Supabase's built-in phone authentication directly, removing the dependency on a custom backend.
-    - Performed a global search-and-replace to update terminology from Owner to Broker in files like , , and the auth screens.
-    - Created  to centralize Supabase interactions.
-- **Feature Implementation (In Progress):**
-    - Began work on the Media Gallery by creating  and installing .
-    - Reworked the Add Property screen () to support video uploads and add a button to navigate to the new gallery.
-- **Bug Fixes:**
-    - Resolved multiple TypeScript errors in  related to optional chaining (), nullish coalescing (), and duplicate style properties that arose during refactoring.
+- **SQL Schema Evolution:** Created and iterated on multiple versions of the Supabase schema (, , , ) in response to detailed user feedback.
+- **Security Hardening:** The latest schema version () was created to address numerous critical and high-severity security and data integrity issues identified by the user.
+- **Feature Scoping:** Clarified and separated requirements for the mobile app from a deferred admin dashboard, resulting in a cleaner, mobile-focused schema.
+- **Frontend Scaffolding:**
+    - Implemented a delete option and cover photo selection feature in the  component.
+    - Updated  to handle the cover photo state.
 
 **Earlier issues found/mentioned but not fixed**
-   - The initial issue failed to parse manifest JSON reported by the user is now considered obsolete, as the architecture has fundamentally changed, removing the backend server that was part of the original setup.
+All known issues have been captured in the **All Pending/In progress Issue list**. The user has been very effective at ensuring issues are not missed, and the agent's current task is a direct result of the latest batch of identified issues.
 
 **Known issue recurrence from previous fork**
-  - N/A
+- **Issue**: The agent has repeatedly struggled to produce a production-quality SQL schema that meets the user's standards for security and logical correctness.
+- **Recurrence count**: At least 3 major revisions have been required based on detailed user corrections.
+- **Status**: IN PROGRESS. The latest attempt, , is pending user validation.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
-- **Backend-as-a-Service (BaaS):** The entire backend is managed by Supabase. The frontend communicates directly with Supabase APIs.
+- **Backend-as-a-Service (BaaS):** All backend logic is handled by Supabase.
 - **Database:** Supabase (PostgreSQL).
-- **Authentication:** Supabase Auth with Phone + OTP.
-- **Security:** PostgreSQL Row Level Security (RLS) to control data access per user.
+- **Security:** Heavy reliance on PostgreSQL Row Level Security (RLS), custom functions (), and database triggers for business logic enforcement and security.
 - **Frontend:** Expo (React Native) with TypeScript.
-- **Routing:**  (file-based).
-- **Video Handling:**  for video-related functionalities.
+- **Platform-Specific Logic:** Differentiating features and UI between iOS and Android using .
 
 **key DB schema**
-- **profiles:** {id (FK to auth.users), mobile, name, firm_name, city, email, role ('broker', 'employee'), is_pro_broker}
-- **organizations:** {id, name, owner_id (FK to profiles)}
-- **properties:** {id, title, description, photos (jsonb[]), videos (jsonb[]), ...}
-- **app_roles:** {role_name (PK - 'super_admin', 'admin'), ...}
-- **role_permissions:** {id, role_name, permission_key, enabled}
-- **in_app_messages:** {id, title, content, target_users, ...}
+(Based on the intended fixes in )
+- **app_config:** {id, key, value} (e.g., , )
+- **profiles:** {id (PK, FK to auth.users), role, organization_id, is_pro_broker, subscription_status} -  and  are now managed ONLY by a trigger.
+- **organizations:** {id, owner_id, max_employee_seats}
+- **organization_members:** {organization_id, profile_id, is_active}
+- **properties:** {id, owner_id, facing, cover_photo_index, ...}
+- **subscriptions:** {id, profile_id, status, start_date, end_date}
+- **Triggers/Functions:**
+    - : Automatically creates a  row for a new user.
+    - : **(Crucially updated)** Securely syncs the best active subscription status to the  table.
+- **RLS Policies:** **(Crucially updated)** Policies are now more restrictive, preventing users from elevating their own privileges (e.g., setting  or changing ) and enforcing business logic (e.g., checking ).
 
 **changes in tech stack**
-- **Complete backend removal:** The FastAPI server and MongoDB database have been entirely replaced by Supabase (PostgreSQL).
+- The project is firmly committed to the Supabase BaaS architecture, having moved away from a prior FastAPI/MongoDB stack.
 
 **All files of reference**
-- : **Crucial.** The complete database schema. The user must run this.
-- : **Crucial.** Script for user to create their own super admin account.
-- : The file where the most recent UI work was done for the media gallery.
-- : The new, placeholder screen that needs to be implemented.
-- : The central service for all frontend-to-Supabase communication.
-- : The refactored authentication context.
+- : **CRITICAL**. The latest schema that must be validated by the user.
+- : The primary frontend file to be modified for Phase 2 tasks.
+- : The gallery component.
 
 **Areas that need refactoring**:
-- The entire application needs to be audited to ensure all API calls are routed through  and no legacy code remains. The  screen is a likely candidate for needing a refactor.
+- The frontend logic in  and any organization-related screens needs to be updated to implement the platform-specific feature locking and property limits once the schema is approved.
 
 **key api endpoints**
-- N/A. The frontend now communicates directly with the Supabase client SDK, not via REST API endpoints.
+- N/A. The frontend uses the Supabase client SDK. A future  endpoint will need to be created as a Supabase Edge Function.
 
 **Critical Info for New Agent**
-- **ARCHITECTURE PIVOT:** The project is now a Supabase BaaS application. **Do not use or refer to the  directory.** All logic must now be implemented in the frontend communicating directly with Supabase.
-- **USER ACTION REQUIRED (BLOCKER):** The immediate blocker is that the user **must** run the SQL scripts  and  in their Supabase project. You cannot test any data-related features until this is done. Confirm with the user that they have completed this step before proceeding.
-- **CURRENT TASK:** Your first coding task is to finish the media gallery feature. This involves implementing the navigation logic from  to  and then building the UI of the gallery screen itself.
-- **NAMING CONVENTION:** The role previously known as Owner is now Broker. Ensure all new code and user-facing text adheres to this.
+- **VALIDATE THE SCHEMA FIRST:** Your absolute first priority is to present  to the user and confirm that it fixes all issues they raised in message #43. Do not write any other code until the user gives explicit approval of the new schema. Be prepared to explain your fixes in detail.
+- **USER IS AN EXPERT:** The user has deep technical knowledge of SQL and security. Provide robust, well-reasoned solutions. Do not take shortcuts.
+- **FOLLOW THE PHASES:** The user has agreed to a phased approach. Complete Phase 1 (Schema Validation) before starting Phase 2 (Frontend Implementation).
+- **iOS vs. ANDROID DIVERGENCE:** Pay close attention to the platform-specific requirements. The iOS app must be completely free of any payment-related UI or text, while the Android app will have an explicit upgrade path. Use  for conditional rendering and logic.
+- **DEFER ADMIN DASHBOARD:** All work should be focused on the mobile app. Do not implement any admin-specific features unless they are part of the supporting backend infrastructure (like the  table).
 
 **documents created in this job**
--  (outdated, superseded by v2)
 - 
--  (current version)
+- 
+- 
+- 
 - 
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User (Message 96):** Confirmed they have a fresh environment and asked if they should run  directly. (Status: Completed - Agent confirmed this is the correct action).
-2.  **User (Message 95):** Agreed to proceed with the gallery UI enhancement. (Status: In Progress).
-3.  **User (Message 62):** Provided key decisions for admin auth (email/magic link), confirmed no phone for admins, and elaborated on the vision for the dynamic in-app pop-up system. (Status: Completed - Agent incorporated this into schema v2).
-4.  **User (Message 59):** Provided critical feedback and new requirements: fixing a major RLS security gap, renaming Owner to Broker, detailing the media gallery UI, and outlining a comprehensive admin role/permission system. (Status: Completed - Agent implemented all schema changes and started the gallery UI).
+1.  **User (Message 43):** Provided an expert, detailed critique of , identifying multiple critical/high severity data integrity and security vulnerabilities. This is the most important recent message and the basis for the current task. (Status: In Progress - Agent created a fix).
+2.  **User (Message 38):** Confirmed the agent should proceed with Phase 1 (fixing the SQL schema) and emphasized that it should be fully production ready with no flaws. Also confirmed the iOS version should have no hint of payments. (Status: Completed - Agent proceeded with schema fix).
+3.  **User (Message 35):** Provided a massive list of new requirements and identified further security flaws, breaking the work down into a Production Readiness Checklist and outlining the iOS/Android divergence, payment integration, and new 'facing' property field. (Status: Completed - Agent incorporated this into a phased plan).
+4.  **User (Message 31):** Requested a major pivot: forget all admin dashboard work for now and create a clean, mobile-app-only SQL schema. (Status: Completed - Agent created  and incorporated this direction into subsequent schemas).
+5.  **User (Message 8):** Provided allowed email domains for admin signup and clarified role logic for new signups ( by default,  if from an invite). (Status: Completed - This logic was implemented in the schema, though the admin part is now deferred).
+6.  **User (Message 5):** Provided a highly detailed, critical security review of  and the admin setup script, identifying numerous flaws and architectural gaps. This was the first major correction from the user. (Status: Completed - Agent created V3 to address this).
 
 **Project Health Check:**
-- **Broken:** The application's data layer is non-functional until the user runs the provided SQL scripts in their Supabase project. The frontend has been partially refactored, but many parts may still be pointing to non-existent backend logic.
-- **Mocked:** The OTP system uses a static  code for development. The payment system is not implemented.
+- **Broken:** The application is fundamentally non-functional. The frontend is out of sync with the proposed database schema, and the schema itself has not been finalized or deployed by the user.
+- **Mocked:** The OTP system uses a static  code for development.
 
 **3rd Party Integrations**
-- **Supabase:** Used for Database (Postgres), Auth, and Storage. Requires User API Key (which is in the  file).
+- **Supabase:** Core for Database (Postgres), Auth, and Storage. Requires User API Key.
+- **Razorpay:** Planned for future Android payment integration.
 
 **Testing status**
   - Testing agent used after significant changes: NO
   - Troubleshoot agent used after agent stuck in loop: NO
   - Test files created: []
-  - Known regressions: The entire application is in a state of flux due to the architectural migration. Most features outside the auth flow are likely broken until the frontend is fully refactored.
+  - Known regressions: N/A. The entire app is in a pre-functional, developmental state.
 
 **Credentials to test flow:**
 - **Mobile App OTP:** Use  to verify any mobile number during login.
 
 **What agent forgot to execute**
-The agent has correctly followed the user's direction. The key is that many previous tasks and plans became obsolete due to the user's decision to pivot to a Supabase BaaS architecture. All subsequent work has been aligned with this new direction.
+The agent's last action was creating . It has not yet executed the crucial next step: presenting this new schema to the user with a detailed explanation of how it fixes the previously identified critical issues, and asking for final approval.
 
 </analysis>
