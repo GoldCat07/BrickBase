@@ -324,6 +324,8 @@ export default function AddPropertyScreen() {
     setPropertyAge('');
     setIsEditMode(false);
     setErrors({});
+    setFacing('');
+    setShowFacingDropdown(false);
   };
 
   const validateForm = () => {
