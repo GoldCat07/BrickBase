@@ -704,6 +704,7 @@ CREATE TRIGGER enforce_profile_update_restrictions
 
 -- C. Sync subscription status from BEST active subscription
 -- Uses bypass flag to update profiles even from cron
+-- CRITICAL: Uses BEGIN/EXCEPTION to ensure bypass flag is ALWAYS cleared
 CREATE OR REPLACE FUNCTION public.sync_profile_subscription_status()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -717,66 +718,73 @@ BEGIN
     target_user_id := NEW.user_id;
   END IF;
   
-  -- Set bypass flag so we can update protected profile fields
-  PERFORM set_config('app.bypass_profile_restrictions', 'true', true);
-  
-  -- Find the BEST subscription for this user
-  SELECT 
-    status,
-    plan_type,
-    end_date,
-    grants_pro_status
-  INTO best_subscription
-  FROM public.subscriptions
-  WHERE user_id = target_user_id
-  ORDER BY 
-    CASE WHEN status = 'active' AND end_date > NOW() THEN 1
-         WHEN status = 'active' AND end_date <= NOW() THEN 3
-         WHEN status = 'pending_payment' THEN 2
-         WHEN status = 'payment_failed' THEN 4
-         WHEN status = 'expired' THEN 5
-         WHEN status = 'cancelled' THEN 6
-         ELSE 7
-    END,
-    CASE 
-      WHEN plan_type = 'pro_broker_annual' THEN 1
-      WHEN plan_type = 'pro_broker_monthly' THEN 2
-      WHEN plan_type = 'admin_granted' THEN 3
-      ELSE 4
-    END,
-    end_date DESC
-  LIMIT 1;
-  
-  -- Check if user has ANY active pro subscription
-  SELECT EXISTS(
-    SELECT 1 FROM public.subscriptions
+  -- Set bypass flag and do work in protected block
+  BEGIN
+    PERFORM set_config('app.bypass_profile_restrictions', 'true', true);
+    
+    -- Find the BEST subscription for this user
+    SELECT 
+      status,
+      plan_type,
+      end_date,
+      grants_pro_status
+    INTO best_subscription
+    FROM public.subscriptions
     WHERE user_id = target_user_id
-      AND status = 'active'
-      AND end_date > NOW()
-      AND (plan_type LIKE 'pro_broker%' OR grants_pro_status = true)
-  ) INTO has_any_active_pro;
-  
-  IF best_subscription IS NULL THEN
-    UPDATE public.profiles
-    SET 
-      subscription_status = 'none',
-      is_pro_broker = FALSE,
-      updated_at = NOW()
-    WHERE id = target_user_id;
-  ELSE
-    UPDATE public.profiles
-    SET 
-      subscription_status = CASE 
-        WHEN best_subscription.status = 'active' AND best_subscription.end_date <= NOW() THEN 'expired'
-        ELSE best_subscription.status
+    ORDER BY 
+      CASE WHEN status = 'active' AND end_date > NOW() THEN 1
+           WHEN status = 'active' AND end_date <= NOW() THEN 3
+           WHEN status = 'pending_payment' THEN 2
+           WHEN status = 'payment_failed' THEN 4
+           WHEN status = 'expired' THEN 5
+           WHEN status = 'cancelled' THEN 6
+           ELSE 7
       END,
-      is_pro_broker = has_any_active_pro,
-      updated_at = NOW()
-    WHERE id = target_user_id;
-  END IF;
-  
-  -- Clear the bypass flag
-  PERFORM set_config('app.bypass_profile_restrictions', 'false', true);
+      CASE 
+        WHEN plan_type = 'pro_broker_annual' THEN 1
+        WHEN plan_type = 'pro_broker_monthly' THEN 2
+        WHEN plan_type = 'admin_granted' THEN 3
+        ELSE 4
+      END,
+      end_date DESC
+    LIMIT 1;
+    
+    -- Check if user has ANY active pro subscription
+    SELECT EXISTS(
+      SELECT 1 FROM public.subscriptions
+      WHERE user_id = target_user_id
+        AND status = 'active'
+        AND end_date > NOW()
+        AND (plan_type LIKE 'pro_broker%' OR grants_pro_status = true)
+    ) INTO has_any_active_pro;
+    
+    IF best_subscription IS NULL THEN
+      UPDATE public.profiles
+      SET 
+        subscription_status = 'none',
+        is_pro_broker = FALSE,
+        updated_at = NOW()
+      WHERE id = target_user_id;
+    ELSE
+      UPDATE public.profiles
+      SET 
+        subscription_status = CASE 
+          WHEN best_subscription.status = 'active' AND best_subscription.end_date <= NOW() THEN 'expired'
+          ELSE best_subscription.status
+        END,
+        is_pro_broker = has_any_active_pro,
+        updated_at = NOW()
+      WHERE id = target_user_id;
+    END IF;
+    
+    -- Clear bypass flag on success
+    PERFORM set_config('app.bypass_profile_restrictions', 'false', true);
+    
+  EXCEPTION WHEN OTHERS THEN
+    -- CRITICAL: Always clear bypass flag, even on error
+    PERFORM set_config('app.bypass_profile_restrictions', 'false', true);
+    RAISE; -- Re-throw the original exception
+  END;
   
   IF TG_OP = 'DELETE' THEN
     RETURN OLD;
