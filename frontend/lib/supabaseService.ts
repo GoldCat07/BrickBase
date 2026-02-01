@@ -110,51 +110,14 @@ export const authService = {
     
     const userId = authData.user.id;
     
-    // Check if email is taken by another user
-    if (data.email) {
-      const { data: emailExists } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('email', data.email)
-        .neq('id', userId)
-        .single();
-      
-      if (emailExists) {
-        throw new Error('Email already registered');
-      }
-    }
-    
-    // Determine firm name based on invite code (if employee joining an org)
-    let firmName = data.firm_name;
-    
-    // The trigger already handled invite_code during OTP verification if passed in metadata
-    // But we can update firm_name to match the organization name if user joined via invite
-    const { data: existingProfile } = await supabase
-      .from('profiles')
-      .select('role, invite_code_used')
-      .eq('id', userId)
-      .single();
-    
-    if (existingProfile?.invite_code_used) {
-      // User joined via invite, get org name for firm_name
-      const { data: org } = await supabase
-        .from('organizations')
-        .select('name')
-        .eq('invite_code', existingProfile.invite_code_used)
-        .single();
-      
-      if (org) {
-        firmName = org.name;
-      }
-    }
-    
     // Update the profile with additional details
     // Note: The trigger already created the basic profile, we just update it
+    // Email uniqueness is enforced by the database constraint
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .update({
         name: data.name,
-        firm_name: firmName,
+        firm_name: data.firm_name,
         city: data.city,
         email: data.email,
         latitude: data.latitude,
@@ -164,7 +127,13 @@ export const authService = {
       .select()
       .single();
     
-    if (profileError) throw new Error(profileError.message);
+    if (profileError) {
+      // Handle duplicate email error gracefully
+      if (profileError.code === '23505' && profileError.message.includes('email')) {
+        throw new Error('Email already registered');
+      }
+      throw new Error(profileError.message);
+    }
     
     return profile as Profile;
   },
