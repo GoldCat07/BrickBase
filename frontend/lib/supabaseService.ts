@@ -87,8 +87,9 @@ export const authService = {
   },
 
   /**
-   * Sign up new user - creates profile for authenticated user
-   * Must be called after successful OTP verification
+   * Complete user profile after OTP verification
+   * The trigger `on_auth_user_created` already creates a basic profile,
+   * this function updates it with additional details (name, firm_name, city, etc.)
    */
   async signUp(data: {
     mobile: string;
@@ -100,8 +101,6 @@ export const authService = {
     longitude?: number;
     invite_code?: string;
   }): Promise<Profile> {
-    const cleanMobile = data.mobile.replace(/\D/g, '');
-    
     // Get the current authenticated user from Supabase Auth
     const { data: authData, error: authError } = await supabase.auth.getUser();
     
@@ -111,23 +110,13 @@ export const authService = {
     
     const userId = authData.user.id;
     
-    // Check if profile already exists for this user
-    const { data: existing } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('id', userId)
-      .single();
-    
-    if (existing) {
-      throw new Error('Profile already exists for this user');
-    }
-    
     // Check if email is taken by another user
     if (data.email) {
       const { data: emailExists } = await supabase
         .from('profiles')
         .select('id')
         .eq('email', data.email)
+        .neq('id', userId)
         .single();
       
       if (emailExists) {
@@ -135,68 +124,47 @@ export const authService = {
       }
     }
     
-    // Determine role based on invite code
-    let role: 'broker' | 'employee' = 'broker';
-    let organizationId: string | null = null;
+    // Determine firm name based on invite code (if employee joining an org)
     let firmName = data.firm_name;
-    let inviteCodeUsed: string | null = null;
     
-    if (data.invite_code) {
+    // The trigger already handled invite_code during OTP verification if passed in metadata
+    // But we can update firm_name to match the organization name if user joined via invite
+    const { data: existingProfile } = await supabase
+      .from('profiles')
+      .select('role, invite_code_used')
+      .eq('id', userId)
+      .single();
+    
+    if (existingProfile?.invite_code_used) {
+      // User joined via invite, get org name for firm_name
       const { data: org } = await supabase
         .from('organizations')
-        .select('*')
-        .eq('invite_code', data.invite_code)
+        .select('name')
+        .eq('invite_code', existingProfile.invite_code_used)
         .single();
       
       if (org) {
-        // Check available seats using used_employee_seats from organization
-        if (org.used_employee_seats >= org.max_employee_seats) {
-          throw new Error('Organization has no available seats');
-        }
-        
-        role = 'employee';
-        organizationId = org.id;
         firmName = org.name;
-        inviteCodeUsed = data.invite_code;
       }
     }
     
-    // Insert profile with authenticated user's ID (matches auth.uid() for RLS)
+    // Update the profile with additional details
+    // Note: The trigger already created the basic profile, we just update it
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .insert({
-        id: userId,
-        mobile: cleanMobile,
+      .update({
         name: data.name,
         firm_name: firmName,
         city: data.city,
         email: data.email,
-        role,
-        invite_code_used: inviteCodeUsed,
         latitude: data.latitude,
         longitude: data.longitude,
       })
+      .eq('id', userId)
       .select()
       .single();
     
     if (profileError) throw new Error(profileError.message);
-    
-    // If employee, add to organization_members table
-    // The trigger in DB will auto-increment used_employee_seats
-    if (organizationId) {
-      const { error: memberError } = await supabase.from('organization_members').insert({
-        user_id: userId,
-        organization_id: organizationId,
-        role: 'employee',
-        is_active: true,
-        joined_at: new Date().toISOString(),
-      });
-      
-      if (memberError) {
-        console.error('Error adding to organization:', memberError);
-        // Don't fail signup, just log the error
-      }
-    }
     
     return profile as Profile;
   },
