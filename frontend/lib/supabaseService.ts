@@ -666,22 +666,11 @@ export const propertyService = {
     caseType?: string;
     includeSold?: boolean;
   }): Promise<Property[]> {
-    // Get user's organization
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('organization_id')
-      .eq('id', userId)
-      .single();
-    
-    let query = supabase.from('properties').select('*');
-    
-    if (profile?.organization_id) {
-      // Show all org properties
-      query = query.eq('organization_id', profile.organization_id);
-    } else {
-      // Show only user's properties
-      query = query.eq('user_id', userId);
-    }
+    // Simple query: only show user's own properties
+    let query = supabase
+      .from('properties')
+      .select('*')
+      .eq('user_id', userId);
     
     if (filters?.propertyType) {
       query = query.eq('property_type', filters.propertyType);
