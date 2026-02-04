@@ -294,7 +294,7 @@ export default function LoginScreen() {
           maxLength={6}
           textAlign="center"
         />
-        <Text style={styles.hint}>Use 000000 for testing</Text>
+        {/* OTP hint removed - using real Twilio verification */}
       </View>
 
       <TouchableOpacity
