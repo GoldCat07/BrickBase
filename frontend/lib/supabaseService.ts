@@ -88,8 +88,7 @@ export const authService = {
 
   /**
    * Complete user profile after OTP verification
-   * The trigger `on_auth_user_created` already creates a basic profile,
-   * this function updates it with additional details (name, firm_name, city, etc.)
+   * Creates a new profile record with user details
    */
   async signUp(data: {
     mobile: string;
@@ -97,8 +96,6 @@ export const authService = {
     firm_name: string;
     city: string;
     email: string;
-    latitude?: number;
-    longitude?: number;
     invite_code?: string;
   }): Promise<Profile> {
     // Get the current authenticated user from Supabase Auth
@@ -109,21 +106,24 @@ export const authService = {
     }
     
     const userId = authData.user.id;
+    const phone = authData.user.phone || '';
     
-    // Update the profile with additional details
-    // Note: The trigger already created the basic profile, we just update it
+    // Normalize city: lowercase, no spaces
+    const normalizedCity = data.city.toLowerCase().replace(/\s+/g, '');
+    
+    // Insert new profile (no auto-trigger anymore)
     // Email uniqueness is enforced by the database constraint
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .update({
+      .insert({
+        id: userId,
+        mobile: phone,
         name: data.name,
         firm_name: data.firm_name,
-        city: data.city,
+        city: normalizedCity,
         email: data.email,
-        latitude: data.latitude,
-        longitude: data.longitude,
+        role: 'broker',
       })
-      .eq('id', userId)
       .select()
       .single();
     
@@ -131,6 +131,10 @@ export const authService = {
       // Handle duplicate email error gracefully
       if (profileError.code === '23505' && profileError.message.includes('email')) {
         throw new Error('Email already registered');
+      }
+      // Handle duplicate profile (user already signed up)
+      if (profileError.code === '23505' && profileError.message.includes('profiles_pkey')) {
+        throw new Error('Profile already exists. Please sign in instead.');
       }
       throw new Error(profileError.message);
     }
