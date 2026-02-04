@@ -1,165 +1,159 @@
-# Real Estate Inventory App - Future Tasks & Roadmap
+# BrickBase - Future Tasks & Roadmap
 
 ## Overview
-This document contains tasks and context for future development sessions. Read this file at the start of each new chat session.
+This document contains deferred features and tasks for future development.
 
 ---
 
-## 🔴 COMPLETED - Mobile Auth & Organization System
+## 🔴 HIGH PRIORITY - Pending Integration
 
-### ✅ Mobile OTP Authentication
-- Sign-up flow with mobile number
-- OTP verification (000000 for testing)
-- Location permission for city auto-fill
-- Sign-up form: Name, Firm Name, City, Email
+### 1. Razorpay Payment Integration (Android Only)
 
-### ✅ Organization System
-- Pro subscription for owners (₹3599/month or ₹35990/year)
-- Employee seat pricing tiers (1-7, 8-14, 15+)
-- Organization creation flow
-- Invite code generation
-- Employee joining with congratulations animation
-- Member list with remove functionality (owner only)
-
-### ✅ Subscription System (Mock Payment)
-- Mock payment flow UI ready
-- Monthly and annual plans
-- Employee seats selection
-- Pricing displayed per city
-
-### ✅ City-based Pricing
-Cities configured:
-1. Faridabad
-2. Gurugram
-3. Noida
-4. Delhi (Premium: 1.2x)
-5. Mumbai (Premium: 1.2x)
-6. Pune
-7. Bangalore (Premium: 1.2x)
-8. Hyderabad
-9. Ahmedabad
-10. Other cities (default pricing)
-11. International (2x pricing for outside India)
-
----
-
-## 🔴 HIGH PRIORITY - Pending Tasks
-
-### 1. Razorpay Integration
-**Current State:** Mock payments
-**Target:** Real Razorpay subscription payments
+**Current State:** Mock payments, role can be changed manually via Supabase dashboard
 
 **Tasks:**
 - [ ] Get Razorpay API keys (Key ID & Key Secret)
-- [ ] Install Razorpay SDK
+- [ ] Create Supabase Edge Function for webhook handling
 - [ ] Create subscription plans in Razorpay dashboard
-- [ ] Set up webhooks for payment notifications
-- [ ] Handle subscription renewal
-- [ ] Handle payment failures with blocking popup
+- [ ] Implement payment flow in Android app
+- [ ] Handle webhook events:
+  - `subscription.activated` → Set role to `pro_broker`
+  - `subscription.charged` → Extend subscription
+  - `payment.failed` → Set role back to `broker`
+  - `subscription.cancelled` → Set role back to `broker`
 
-**Webhook Events to Handle:**
-- `subscription.activated`
-- `subscription.charged`
-- `subscription.pending`
-- `subscription.cancelled`
-- `payment.failed`
+**Webhook Flow:**
+```
+Razorpay Event → Supabase Edge Function → Insert/Update subscriptions table → Trigger updates profile role
+```
 
 ### 2. Deep Linking for Invite Links
-**Current State:** Basic deep linking setup
-**Target:** Production-ready deep linking
+
+**Current State:** Basic setup, not production-ready
 
 **Tasks:**
 - [ ] Configure app scheme in app.json
 - [ ] Set up Universal Links (iOS) / App Links (Android)
-- [ ] Configure domain for deep linking
 - [ ] Handle link when app not installed → redirect to store
-- [ ] Test on both platforms
+- [ ] Implement AcceptInviteScreen flow:
+  ```
+  User taps link
+       ↓
+  If app installed → opens app → AcceptInviteScreen
+  If not installed → Store → Install → AcceptInviteScreen
+       ↓
+  Token validated → invite accepted
+  ```
 
 **Deep Link Format:**
-- Custom scheme: `yourapp://invite/CODE`
+- Custom scheme: `brickbase://invite/CODE`
 - Universal link: `https://yourdomain.com/invite/CODE`
 
-### 3. Push Notifications
-**Current State:** expo-notifications installed
-**Target:** Working push notifications
+### 3. Device Management (Multi-device Login Control)
+
+**Current State:** Devices table ready, logic not implemented
 
 **Tasks:**
-- [ ] Register for push notifications
-- [ ] Store push tokens in database
-- [ ] Send notification when employee joins organization
-- [ ] Handle notification taps
-
-**Notification Types:**
-- Employee joined organization
-- Subscription expiring soon
-- Payment failed
-
-### 4. Admin Dashboard (Web)
-**Current State:** Backend API endpoints ready
-**Target:** Web admin dashboard
-
-**Features:**
-- Spreadsheet-like user list with filters
-- City-wise pricing controls
-- User subscription management
-- Organization management
-- Property viewer per firm
-
-**UI Design:**
-- Shiny black marble background for spreadsheet
-- Blue watery background with bubbles for page
-- Columns: Name, Mobile, Firm Name, Subscription Status
-- Click row to see details
-
-**Admin Endpoints Ready:**
-- GET `/api/admin/users` - List all owners
-- GET `/api/admin/users/{id}` - User details
-- GET `/api/admin/users/{id}/properties` - User's properties
-- PUT `/api/admin/users/{id}/subscription` - Update subscription
-- GET `/api/admin/pricing` - All city pricing
-- PUT `/api/admin/pricing/{city}` - Update city pricing
+- [ ] Create Supabase Edge Function for device management
+- [ ] On login: Register device, check limit, auto-logout oldest if needed
+- [ ] Use `supabase.auth.admin.signOut(session_id)` to revoke sessions
+- [ ] Store device info on each login
+- [ ] Max devices controlled by `app_config.max_devices`:
+  - broker: 2
+  - pro_broker: 4
+  - employee: 1
 
 ---
 
 ## 🟡 MEDIUM PRIORITY
 
-### 5. Supabase Full Migration
-**Current State:** MongoDB + custom auth
-**Target:** Supabase PostgreSQL + Auth + Storage
+### 4. In-App Messaging System
+
+**Purpose:** Show banners/popups to users from admin dashboard
+
+**Tables to Add:**
+```sql
+CREATE TABLE in_app_messages (
+  id UUID PRIMARY KEY,
+  title TEXT NOT NULL,
+  message TEXT,
+  image_url TEXT,
+  action_type TEXT, -- none, link, screen, deeplink
+  action_value TEXT,
+  style TEXT, -- popup, banner, fullscreen
+  target_type TEXT, -- all, pro_only, free_users, etc.
+  start_date TIMESTAMPTZ,
+  end_date TIMESTAMPTZ,
+  is_active BOOLEAN
+);
+
+CREATE TABLE user_message_status (
+  user_id UUID REFERENCES profiles(id),
+  message_id UUID REFERENCES in_app_messages(id),
+  seen_at TIMESTAMPTZ,
+  dismissed_at TIMESTAMPTZ
+);
+```
+
+### 5. Push Notifications
 
 **Tasks:**
-- [ ] Migrate database to Supabase PostgreSQL
-- [ ] Set up Row Level Security (RLS)
-- [ ] Migrate file storage to Supabase Storage
-- [ ] Update frontend to use Supabase client
+- [ ] Register for push notifications with `expo-notifications`
+- [ ] Store push tokens in `devices.push_token`
+- [ ] Send notifications via Supabase Edge Functions
+- [ ] Notification types:
+  - Employee joined organization
+  - Subscription expiring
+  - Payment failed
 
-### 6. Single Device Login
-**Current State:** No device restrictions
-**Target:** One mobile per account
+### 6. Admin Dashboard (Web)
 
-**Tasks:**
-- [ ] Store device ID on login
-- [ ] Check device ID on auth
-- [ ] Force logout on other devices
-- [ ] Show "logged in on another device" message
+**Features:**
+- User management (list, search, filter)
+- Manual role changes (broker ↔ pro_broker)
+- Subscription management
+- Organization management
+- Property viewer per firm
+- City-wise pricing controls
+
+**Tech:** Separate web app (React/Next.js) with Supabase service_role key
 
 ---
 
 ## 🟢 LOW PRIORITY
 
-### 7. Offline Support
-- [ ] Cache properties locally
-- [ ] Sync when online
+### 7. Property Facing Field
 
-### 8. Analytics
-- [ ] Track user behavior
-- [ ] Track feature usage
+Add facing direction to properties:
+- Values: North, South, East, West, NE, NW, SE, SW
+- Add dropdown in Add Property form
+- Already in schema, just needs UI
+
+### 8. City-wise Pricing
+
+Currently uniform pricing. Future:
+- Different pricing per city tier
+- Metro cities premium pricing
+- International pricing
+
+### 9. Offline Support
+
+- Cache properties locally with AsyncStorage
+- Queue property additions when offline
+- Sync when back online
+
+### 10. Analytics
+
+- Track user behavior
+- Track feature usage
+- Property view counts
+- Search patterns
 
 ---
 
-## 📱 App Configuration
+## 📱 App Configuration Reference
 
-### Android Configuration (app.json)
+### Android app.json (Deep Links)
 ```json
 {
   "expo": {
@@ -183,7 +177,7 @@ Cities configured:
 }
 ```
 
-### iOS Configuration (app.json)
+### iOS app.json (Associated Domains)
 ```json
 {
   "expo": {
@@ -198,59 +192,30 @@ Cities configured:
 
 ---
 
-## 🔧 Environment Variables
+## 🔧 Environment Variables (When Ready)
 
-### Backend (.env)
+### Supabase Edge Function (.env)
 ```
-MONGO_URL=mongodb://localhost:27017
-DB_NAME=test_database
-SUPABASE_URL=https://zolmdmbalbieltuhzbjb.supabase.co
-SUPABASE_KEY=sb_publishable_...
-
-# Add when ready:
 RAZORPAY_KEY_ID=your_key
 RAZORPAY_KEY_SECRET=your_secret
-```
-
-### Frontend (.env)
-```
-EXPO_PUBLIC_BACKEND_URL=https://yourapp.com
-EXPO_PUBLIC_SUPABASE_URL=https://zolmdmbalbieltuhzbjb.supabase.co
-EXPO_PUBLIC_SUPABASE_KEY=sb_publishable_...
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 ```
 
 ---
 
-## 📋 API Endpoints Summary
+## 📋 Schema Files Reference
 
-### Authentication
-- POST `/api/auth/send-otp` - Send OTP to mobile
-- POST `/api/auth/verify-otp` - Verify OTP
-- POST `/api/auth/signup` - Complete registration
-- GET `/api/auth/me` - Get current user
-- PUT `/api/auth/profile` - Update profile
-- GET `/api/auth/check-invite/{code}` - Check invite code validity
+| File | Description |
+|------|-------------|
+| `supabase_schema_2026_02_04_0310.sql` | Current production schema v1.0 |
 
-### Organization
-- POST `/api/organization` - Create organization
-- GET `/api/organization` - Get user's organization
-- GET `/api/organization/members` - Get members
-- DELETE `/api/organization/members/{id}` - Remove member
-- PUT `/api/organization/seats` - Update seat count
-
-### Subscription
-- GET `/api/pricing` - Get pricing for user's city
-- POST `/api/subscription/create` - Create subscription (mock)
-- GET `/api/subscription` - Get current subscription
-
-### Properties
-- POST `/api/properties` - Create property
-- GET `/api/properties` - List properties
-- GET `/api/properties/{id}` - Get property
-- PUT `/api/properties/{id}` - Update property
-- DELETE `/api/properties/{id}` - Delete property
-- PATCH `/api/properties/{id}/sold` - Mark as sold
+When adding new tables:
+1. Create new SQL file with timestamp
+2. Reference existing schema for patterns
+3. Always include RLS policies
+4. Add triggers for automated logic
 
 ---
 
-Last updated: January 2025
+Last updated: February 2026
