@@ -451,6 +451,7 @@ export const pricingService = {
 export const subscriptionService = {
   /**
    * Create subscription (mock payment for now)
+   * Note: In production, this will be handled by Razorpay webhooks via Supabase Edge Functions
    */
   async create(
     userId: string,
@@ -469,7 +470,7 @@ export const subscriptionService = {
     }
     
     // Get pricing
-    const pricing = await pricingService.getForCity(profile?.city || 'other_cities');
+    const pricing = await pricingService.getForCity(profile?.city || 'default');
     
     // Calculate amount
     let amount = planType === 'pro_broker_monthly' 
@@ -494,7 +495,7 @@ export const subscriptionService = {
         status: 'active',
         employee_seats: employeeSeats,
         amount,
-        payment_id: `mock_${Date.now()}`,
+        razorpay_payment_id: `mock_${Date.now()}`,
         start_date: startDate.toISOString(),
         end_date: endDate.toISOString(),
       })
@@ -503,28 +504,8 @@ export const subscriptionService = {
     
     if (error) throw new Error(error.message);
     
-    // Update user to Pro Broker
-    await supabase
-      .from('profiles')
-      .update({
-        is_pro_broker: true,
-        subscription_status: 'active',
-      })
-      .eq('id', userId);
-    
-    // Update organization seats if exists
-    const { data: org } = await supabase
-      .from('organizations')
-      .select('id')
-      .eq('owner_id', userId)
-      .single();
-    
-    if (org && employeeSeats > 0) {
-      await supabase
-        .from('organizations')
-        .update({ employee_seats: employeeSeats })
-        .eq('id', org.id);
-    }
+    // Note: User role will be automatically updated by the sync_subscription_status trigger
+    // No manual role update needed here
     
     return subscription as Subscription;
   },
@@ -537,7 +518,7 @@ export const subscriptionService = {
       .from('subscriptions')
       .select('*')
       .eq('user_id', userId)
-      .in('status', ['active', 'pending_payment'])
+      .in('status', ['active', 'pending'])
       .order('created_at', { ascending: false })
       .limit(1)
       .single();
@@ -546,15 +527,11 @@ export const subscriptionService = {
     
     // Check if expired
     if (new Date(data.end_date) < new Date()) {
+      // Trigger will handle role downgrade
       await supabase
         .from('subscriptions')
         .update({ status: 'expired' })
         .eq('id', data.id);
-      
-      await supabase
-        .from('profiles')
-        .update({ is_pro_broker: false, subscription_status: 'expired' })
-        .eq('id', userId);
       
       return null;
     }
