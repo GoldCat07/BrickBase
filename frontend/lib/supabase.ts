@@ -14,27 +14,18 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
   },
 });
 
-// Database types
+// Database types - Matches schema v1.0 (2026-02-04)
 export interface Profile {
   id: string;
   mobile: string;
-  name: string | null;
-  firm_name: string | null;
-  city: string | null;
-  email: string | null;
-  role: 'broker' | 'employee';
-  is_pro_broker: boolean;
-  admin_granted_pro: boolean;
+  name: string;
+  firm_name: string;
+  city: string;
+  email: string;
+  role: 'broker' | 'pro_broker' | 'employee';
   profile_photo: string | null;
-  subscription_status: 'active' | 'expired' | 'pending_payment' | 'none' | null;
   invite_code_used: string | null;
   invited_by: string | null;
-  latitude: number | null;
-  longitude: number | null;
-  device_token: string | null;
-  device_id: string | null;
-  device_platform: 'ios' | 'android' | null;
-  last_login_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -44,7 +35,9 @@ export interface Organization {
   name: string;
   owner_id: string;
   invite_code: string;
-  employee_seats: number;
+  max_employee_seats: number;
+  used_employee_seats: number;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -53,7 +46,8 @@ export interface OrganizationMember {
   id: string;
   organization_id: string;
   user_id: string;
-  role: 'broker' | 'employee';
+  role: 'owner' | 'employee';
+  is_active: boolean;
   joined_at: string;
   created_at: string;
   updated_at: string;
@@ -67,6 +61,9 @@ export interface Pricing {
   employee_tier_1: number;
   employee_tier_2: number;
   employee_tier_3: number;
+  tier_1_max: number;
+  tier_2_max: number;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -74,14 +71,28 @@ export interface Pricing {
 export interface Subscription {
   id: string;
   user_id: string;
-  plan_type: 'pro_broker_monthly' | 'pro_broker_annual' | 'admin_granted';
-  status: 'active' | 'expired' | 'pending_payment' | 'cancelled';
-  employee_seats: number;
+  plan_type: 'pro_broker_monthly' | 'pro_broker_annual' | 'employee_seats';
+  status: 'active' | 'expired' | 'payment_failed' | 'cancelled' | 'pending';
   amount: number;
-  payment_id: string | null;
+  employee_seats: number;
+  razorpay_subscription_id: string | null;
+  razorpay_payment_id: string | null;
+  razorpay_order_id: string | null;
   start_date: string;
   end_date: string;
-  granted_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Device {
+  id: string;
+  user_id: string;
+  device_id: string;
+  device_name: string | null;
+  platform: 'ios' | 'android' | null;
+  push_token: string | null;
+  last_active_at: string;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 }
