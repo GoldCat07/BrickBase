@@ -380,12 +380,11 @@ export default function LoginScreen() {
             <Text style={styles.label}>City of Operations</Text>
             <View style={styles.cityInputContainer}>
               <TextInput
-                style={styles.cityInput}
-                placeholder="Enter your city"
+                style={[styles.cityInput, styles.inputDisabled]}
+                placeholder="Tap location icon to detect"
                 placeholderTextColor="#666"
                 value={city}
-                onChangeText={setCity}
-                autoCapitalize="words"
+                editable={false}
               />
               <TouchableOpacity 
                 style={styles.locationButton}
@@ -401,6 +400,9 @@ export default function LoginScreen() {
             </View>
             {location && (
               <Text style={styles.autoFilledText}>Auto-filled from your location</Text>
+            )}
+            {!location && !locationLoading && (
+              <Text style={styles.locationRequiredText}>Location access is required</Text>
             )}
           </View>
 
