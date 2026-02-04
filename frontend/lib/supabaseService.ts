@@ -61,13 +61,14 @@ export const authService = {
     }
     
     // Check if profile exists for this user
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
       .single();
     
-    if (profile) {
+    // Profile exists and is complete (has all required fields)
+    if (profile && profile.name && profile.firm_name && profile.city && profile.email) {
       return {
         verified: true,
         isNewUser: false,
@@ -77,7 +78,7 @@ export const authService = {
       };
     }
     
-    // New user - no profile yet
+    // Profile doesn't exist or is incomplete - treat as new user
     return {
       verified: true,
       isNewUser: true,
