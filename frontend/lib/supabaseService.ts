@@ -638,24 +638,22 @@ export const propertyService = {
    * Create property
    */
   async create(userId: string, propertyData: Partial<Property>): Promise<Property> {
-    // Get user's organization_id
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('organization_id')
-      .eq('id', userId)
-      .single();
-    
     const { data, error } = await supabase
       .from('properties')
       .insert({
         ...propertyData,
         user_id: userId,
-        organization_id: profile?.organization_id,
       })
       .select()
       .single();
     
-    if (error) throw new Error(error.message);
+    if (error) {
+      // Handle property limit error
+      if (error.message.includes('Property limit reached')) {
+        throw new Error(error.message);
+      }
+      throw new Error(error.message);
+    }
     return data as Property;
   },
 
