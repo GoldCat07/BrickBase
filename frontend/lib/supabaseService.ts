@@ -198,20 +198,16 @@ export const organizationService = {
   /**
    * Create organization (Pro brokers only)
    */
-  async create(userId: string, name: string, employeeSeats: number = 0): Promise<Organization> {
-    // Check if user is pro broker
+  async create(userId: string, name: string, maxEmployeeSeats: number = 0): Promise<Organization> {
+    // Check if user is pro_broker
     const { data: profile } = await supabase
       .from('profiles')
-      .select('is_pro_broker, role')
+      .select('role')
       .eq('id', userId)
       .single();
     
-    if (!profile?.is_pro_broker) {
+    if (profile?.role !== 'pro_broker') {
       throw new Error('Only Pro Brokers can create organizations');
-    }
-    
-    if (profile.role !== 'broker') {
-      throw new Error('Only brokers can create organizations');
     }
     
     // Check if user already has an organization
@@ -225,34 +221,23 @@ export const organizationService = {
       throw new Error('You already have an organization');
     }
     
-    // Generate invite code
-    const inviteCode = generateInviteCode();
-    
     const { data: org, error } = await supabase
       .from('organizations')
       .insert({
         name,
         owner_id: userId,
-        invite_code: inviteCode,
-        employee_seats: employeeSeats,
+        max_employee_seats: maxEmployeeSeats,
       })
       .select()
       .single();
     
     if (error) throw new Error(error.message);
     
-    // Update user's organization_id
-    await supabase
-      .from('profiles')
-      .update({ organization_id: org.id })
-      .eq('id', userId);
-    
     // Add owner as member
     await supabase.from('organization_members').insert({
       user_id: userId,
       organization_id: org.id,
-      role: 'broker',
-      joined_at: new Date().toISOString(),
+      role: 'owner',
     });
     
     return org as Organization;
