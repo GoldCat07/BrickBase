@@ -312,12 +312,6 @@ export const organizationService = {
       .delete()
       .eq('organization_id', organizationId)
       .eq('user_id', userId);
-    
-    // Clear user's organization_id
-    await supabase
-      .from('profiles')
-      .update({ organization_id: null })
-      .eq('id', userId);
   },
 
   /**
