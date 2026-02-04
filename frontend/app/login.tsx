@@ -186,14 +186,15 @@ export default function LoginScreen() {
 
     setLoading(true);
     try {
+      // Normalize city: lowercase, no spaces
+      const normalizedCity = city.toLowerCase().replace(/\s+/g, '');
+      
       await signUp({
         mobile,
         name,
         firm_name: firmName,
-        city,
+        city: normalizedCity,
         email,
-        latitude: location?.latitude,
-        longitude: location?.longitude,
         invite_code: inviteCode || undefined,
       });
       
