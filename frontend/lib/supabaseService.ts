@@ -592,14 +592,14 @@ export const propertyService = {
     limit: number;
     isProBroker: boolean;
   }> {
-    // Get user's pro status
+    // Get user's role
     const { data: profile } = await supabase
       .from('profiles')
-      .select('is_pro_broker')
+      .select('role')
       .eq('id', userId)
       .single();
     
-    const isProBroker = profile?.is_pro_broker || false;
+    const isProBroker = profile?.role === 'pro_broker';
     
     // Pro brokers have unlimited properties
     if (isProBroker) {
@@ -610,12 +610,12 @@ export const propertyService = {
     const { data: config } = await supabase
       .from('app_config')
       .select('value')
-      .eq('key', 'free_broker_property_limit')
+      .eq('key', 'limits')
       .eq('is_active', true)
       .single();
     
     // Default to 3 if not configured
-    const limit = config?.value?.limit ?? 3;
+    const limit = config?.value?.free_property_limit ?? 3;
     
     // Get current property count
     const currentCount = await this.getUserPropertyCount(userId);
