@@ -689,11 +689,17 @@ export const propertyService = {
    * Get single property
    */
   async get(propertyId: string): Promise<Property | null> {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('properties')
       .select('*')
       .eq('id', propertyId)
       .single();
+    
+    if (error) {
+      // Property not found or access denied by RLS
+      console.error('Property fetch error:', error.message);
+      return null;
+    }
     
     return data as Property | null;
   },
