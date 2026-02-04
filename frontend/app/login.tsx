@@ -620,6 +620,11 @@ const styles = StyleSheet.create({
     color: '#4CAF50',
     marginTop: 4,
   },
+  locationRequiredText: {
+    fontSize: 12,
+    color: '#ff6b6b',
+    marginTop: 4,
+  },
   locationLoading: {
     flexDirection: 'row',
     alignItems: 'center',
